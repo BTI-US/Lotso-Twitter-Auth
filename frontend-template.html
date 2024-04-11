@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Twitter Integration Example</title>
+</head>
+<body>
+    <button id="start-auth">Log in with Twitter</button>
+    <div id="tweets"></div>
+
+    <script>
+        // URL of your backend service
+        const backendUrl = 'https://oauth.btiplatform.com';
+
+        document.getElementById('start-auth').addEventListener('click', function() {
+            // Initiate the OAuth process by redirecting to the backend endpoint
+            window.location.href = `${backendUrl}/start-auth`;
+        });
+
+        async function fetchTweets() {
+            try {
+                // Make a request to the backend to check tweets
+                const response = await fetch(`${backendUrl}/check-tweets`);
+                const data = await response.json();
+
+                if (data.hasTweeted) {
+                    document.getElementById('tweets').innerText = 'User has tweeted the specific content.';
+                } else {
+                    document.getElementById('tweets').innerText = 'No specific content found in tweets.';
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                document.getElementById('tweets').innerText = 'An error occurred.';
+            }
+        }
+
+        // Example call to fetchTweets (You may call this based on your app's flow)
+        // fetchTweets();
+    </script>
+</body>
+</html>
