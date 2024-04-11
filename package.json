@@ -1,0 +1,28 @@
+{
+  "name": "lotso-twitter-auth",
+  "version": "0.0.1",
+  "description": "Authentication for Lotso Twitter account and tweets verification",
+  "main": "src/app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/BTI-US/Lotso-Twitter-Auth.git"
+  },
+  "keywords": [
+    "Lotso",
+    "Authentication",
+    "Twitter"
+  ],
+  "author": "Phillweston",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/BTI-US/Lotso-Twitter-Auth/issues"
+  },
+  "homepage": "https://github.com/BTI-US/Lotso-Twitter-Auth#readme",
+  "devDependencies": {
+    "oauth": "^0.10.0",
+    "twitter": "^1.7.1"
+  }
+}
