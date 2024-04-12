@@ -1,43 +1,10 @@
 const OAuth = require('oauth').OAuth;
-const Twitter = require('twitter');
-
-/**
- * Checks if any of the tweets contains the specified content.
- * @param {Array} tweets - Array of tweet objects from the Twitter API.
- * @param {String} content - The specific content to search for.
- * @returns {Boolean} - Returns true if any tweet contains the content.
- */
-function checkTweetContent(tweets, content) {
-    return tweets.some(tweet => tweet.text.includes(content));
-}
-
-/**
- * Fetches tweets from a user's timeline.
- * @param {string} accessToken - The access token for Twitter API.
- * @param {string} accessTokenSecret - The access token secret for Twitter API.
- * @returns {Promise<Array>} - A promise that resolves to an array of tweets.
- */
-async function getTweets(accessToken, accessTokenSecret) {
-    const client = new Twitter({
-        consumer_key: process.env.TWITTER_CONSUMER_KEY,
-        consumer_secret: process.env.TWITTER_CONSUMER_SECRET,
-        access_token_key: accessToken,
-        access_token_secret: accessTokenSecret
-    });
-
-    try {
-        const params = { count: 10 }; // Retrieve the last 10 tweets
-        const tweets = await client.get('statuses/user_timeline', params);
-        return tweets;
-    } catch (error) {
-        console.error('Error fetching tweets:', error);
-        throw error; // Re-throw the error for handling upstream
-    }
-}
 
 exports.handler = async (event, context) => {
     const consumerKey = process.env.TWITTER_CONSUMER_KEY;
     const consumerSecret = process.env.TWITTER_CONSUMER_SECRET;
+    // Extract callback URL from query parameters
+    const callbackUrl = decodeURIComponent(event.queryStringParameters.callback);
 
     const oauth = new OAuth(
         'https://api.twitter.com/oauth/request_token',
@@ -45,7 +12,7 @@ exports.handler = async (event, context) => {
         consumerKey,
         consumerSecret,
         '1.0A',
-        'YOUR_FRONTEND_CALLBACK_URL', // This should be the URL of your frontend
+        callbackUrl, // Dynamically set the callback URL
         'HMAC-SHA1'
     );
 
@@ -100,18 +67,115 @@ exports.handler = async (event, context) => {
         });
     }
 
-    // Check if the user has tweeted specific content
-    else if (event.path === '/check-tweets') {
-        // In a real-world scenario, you'd retrieve the access tokens from a secure storage, linked to the user's session
-        const accessToken = event.queryStringParameters.accessToken;
-        const accessTokenSecret = event.queryStringParameters.accessTokenSecret;
+    // Handle the retweet request
+    else if (event.path === '/retweet') {
+        const { accessToken, accessTokenSecret, tweetId } = event.queryStringParameters;
+        return retweetTweet(accessToken, accessTokenSecret, tweetId);
+    }
 
-        try {
-            const tweets = await getTweets(accessToken, accessTokenSecret);
-            const hasTweeted = checkTweetContent(tweets, 'SPECIFIC_CONTENT');
-            return { statusCode: 200, body: JSON.stringify({ hasTweeted }) };
-        } catch (error) {
-            return { statusCode: 500, body: JSON.stringify(error) };
-        }
+    // Handle the like request
+    else if (event.path === '/like') {
+        const { accessToken, accessTokenSecret, tweetId } = event.queryStringParameters;
+        return likeTweet(accessToken, accessTokenSecret, tweetId);
+    }
+
+    // Handle the share request
+    else if (event.path === '/share') {
+        const { accessToken, accessTokenSecret, tweetId, recipientId } = event.queryStringParameters;
+        return shareTweet(accessToken, accessTokenSecret, tweetId, recipientId);
     }
 };
+
+/**
+ * @brief Makes an authenticated request to a specified URL using OAuth.
+ * @param {string} accessToken - The OAuth access token.
+ * @param {string} accessTokenSecret - The OAuth access token secret.
+ * @param {string} method - The HTTP method for the request (e.g., 'GET', 'POST').
+ * @param {string} url - The URL to make the request to.
+ * @param {Object|null} [body=null] - The request body for POST requests.
+ * @return {Promise<Object>} A promise that resolves with the response data.
+ * @note This function requires the 'OAuth' library to be installed.
+ */
+function makeAuthenticatedRequest(accessToken, accessTokenSecret, method, url, body = null) {
+    return new Promise((resolve, reject) => {
+        const oauth = new OAuth(
+            'https://api.twitter.com/oauth/request_token',
+            'https://api.twitter.com/oauth/access_token',
+            process.env.TWITTER_CONSUMER_KEY,
+            process.env.TWITTER_CONSUMER_SECRET,
+            '1.0A',
+            null,
+            'HMAC-SHA1'
+        );
+
+        oauth[method.toLowerCase()](
+            url,
+            accessToken,  // OAuth access token
+            accessTokenSecret,  // OAuth access token secret
+            body,  // Post body for POST requests
+            'application/json',  // Post content type
+            (error, data, response) => {
+                if (error) reject(error);
+                else resolve(JSON.parse(data));
+            }
+        );
+    });
+}
+
+/**
+ * @brief Retweets a tweet using the provided access token and access token secret.
+ * 
+ * @param {string} accessToken - The access token for authenticating the request.
+ * @param {string} accessTokenSecret - The access token secret for authenticating the request.
+ * @param {string} tweetId - The ID of the tweet to retweet.
+ * 
+ * @return {Promise} A Promise that resolves with the response from the retweet API call.
+ * 
+ * @note This function makes an authenticated request to the Twitter API to retweet a specific tweet.
+ */
+function retweetTweet(accessToken, accessTokenSecret, tweetId) {
+    const url = `https://api.twitter.com/2/tweets/${tweetId}/retweet`;
+    return makeAuthenticatedRequest(accessToken, accessTokenSecret, 'POST', url);
+}
+
+/**
+ * @brief Likes a tweet using the provided access tokens.
+ * 
+ * @param {string} accessToken - The access token for authenticating the request.
+ * @param {string} accessTokenSecret - The access token secret for authenticating the request.
+ * @param {string} tweetId - The ID of the tweet to be liked.
+ * 
+ * @return {Promise} A promise that resolves to the response of the API request.
+ * 
+ * @note This function makes an authenticated request to the Twitter API to like a tweet.
+ */
+function likeTweet(accessToken, accessTokenSecret, tweetId) {
+    const url = `https://api.twitter.com/2/users/${process.env.TWITTER_USER_ID}/likes`;
+    const body = JSON.stringify({ tweet_id: tweetId });
+    return makeAuthenticatedRequest(accessToken, accessTokenSecret, 'POST', url, body);
+}
+
+/**
+ * @brief Shares a tweet with a recipient on Twitter.
+ * 
+ * @param {string} accessToken - The access token for authenticating the request.
+ * @param {string} accessTokenSecret - The access token secret for authenticating the request.
+ * @param {string} tweetId - The ID of the tweet to share.
+ * @param {string} recipientId - The ID of the recipient user.
+ * 
+ * @return {Promise} A promise that resolves to the response of the API request.
+ * 
+ * @note This function makes an authenticated request to the Twitter API to send a direct message
+ *       containing a link to the specified tweet to the recipient user.
+ */
+function shareTweet(accessToken, accessTokenSecret, tweetId, recipientId) {
+    const url = `https://api.twitter.com/2/users/${recipientId}/messages`;
+    const messageContent = `Check out this tweet: https://twitter.com/i/web/status/${tweetId}`;
+    const body = JSON.stringify({
+        message_create: {
+            target: { recipient_id: recipientId },
+            message_data: { text: messageContent }
+        }
+    });
+    return makeAuthenticatedRequest(accessToken, accessTokenSecret, 'POST', url, body);
+}

@@ -1,40 +1,79 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Twitter Integration Example</title>
+    <meta charset="UTF-8">
+    <title>Twitter Actions</title>
 </head>
 <body>
-    <button id="start-auth">Log in with Twitter</button>
-    <div id="tweets"></div>
+    <button id="start-auth">Login with Twitter</button>
+    <button id="retweet" style="display:none;">Retweet</button>
+    <button id="like" style="display:none;">Like</button>
+    <button id="share" style="display:none;">Share</button>
 
     <script>
-        // URL of your backend service
         const backendUrl = 'https://oauth.btiplatform.com';
 
         document.getElementById('start-auth').addEventListener('click', function() {
-            // Initiate the OAuth process by redirecting to the backend endpoint
-            window.location.href = `${backendUrl}/start-auth`;
+            const callbackUrl = encodeURIComponent('https://lotso.org/twitter-callback');
+            const authUrl = `${backendUrl}/start-auth?callback=${callbackUrl}`;
+            // Open a new tab with the OAuth URL
+            window.open(authUrl, '_blank');
         });
 
-        async function fetchTweets() {
-            try {
-                // Make a request to the backend to check tweets
-                const response = await fetch(`${backendUrl}/check-tweets`);
-                const data = await response.json();
+        function getTokensFromURL() {
+            const urlParams = new URLSearchParams(window.location.search);
+            // The accessToken and accessTokenSecret are obtained from the URL query parameters, which is the temporary OAuth token
+            // No need to manually obtain from the Twitter developer portal
+            const accessToken = urlParams.get('accessToken');
+            const accessTokenSecret = urlParams.get('accessTokenSecret');
 
-                if (data.hasTweeted) {
-                    document.getElementById('tweets').innerText = 'User has tweeted the specific content.';
-                } else {
-                    document.getElementById('tweets').innerText = 'No specific content found in tweets.';
-                }
-            } catch (error) {
-                console.error('Error:', error);
-                document.getElementById('tweets').innerText = 'An error occurred.';
+            if (accessToken && accessTokenSecret) {
+                console.log('Access Token:', accessToken);
+                console.log('Access Token Secret:', accessTokenSecret);
+
+                // Show action buttons if tokens are available
+                document.getElementById('retweet').style.display = 'inline';
+                document.getElementById('like').style.display = 'inline';
+                document.getElementById('share').style.display = 'inline';
+
+                // Attach event handlers to buttons
+                document.getElementById('retweet').addEventListener('click', function() {
+                    performAction('retweet', accessToken, accessTokenSecret);
+                });
+                document.getElementById('like').addEventListener('click', function() {
+                    performAction('like', accessToken, accessTokenSecret);
+                });
+                document.getElementById('share').addEventListener('click', function() {
+                    performAction('share', accessToken, accessTokenSecret);
+                });
             }
         }
 
-        // Example call to fetchTweets (You may call this based on your app's flow)
-        // fetchTweets();
+        function performAction(action, accessToken, accessTokenSecret) {
+            fetch(`${backendUrl}/${action}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    accessToken: accessToken,
+                    accessTokenSecret: accessTokenSecret
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log(`${action} action response:`, data);
+            })
+            .catch(error => {
+                console.error('Error performing action:', error);
+            });
+        }
+
+        window.onload = function() {
+            if (window.location.search) {
+                getTokensFromURL();
+            }
+        };
     </script>
 </body>
 </html>

@@ -1,7 +1,7 @@
 # Twitter OAuth Docker Project
 
 ## Overview
-This project implements a serverless function to authenticate Twitter users via OAuth and check their tweets for specific content. It uses Docker to containerize the application, ensuring a consistent environment for development, testing, and deployment.
+This project implements a serverless function hosted within a Docker container to facilitate the OAuth authentication of Twitter users and enable interaction with Twitter's API directly from the frontend. The application allows users not only to check their tweets but also to engage with them by performing actions such as retweeting, liking, and sharing directly through the application.
 
 ## Features
 - OAuth authentication with Twitter.
@@ -11,7 +11,39 @@ This project implements a serverless function to authenticate Twitter users via 
 ## Requirements
 - [Node.js](https://nodejs.org/)
 - [Docker](https://www.docker.com/)
-- Twitter Developer Account and API keys.
+- Twitter Developer Account and API keys (Consumer Keys Only).
+
+## Diagram
+![Diagram](https://mermaid.ink/img/pako:eNp1VE1v4kAM_StWDqWVQNw5VCrt5tSqFR83LmZiYESYyXocULfqf19PhkCANpeJ5tnPz8_WfGXGF5SNskB_a3KGXiyuGXcLB_pVyGKNrdAJzAEDzAPxLZRHKGfvhFxxC48jPEaz_RGdRXR2sCKROuHzweNjPoLn0pptgN6rX4N1oDGbNrKXAp0XArbrjYBfgaa8V-QAwdEBBJew8gzvT7VsUniuvOMRTKiwTEZAPAyDqJgBakwqYLAslyoW5pPXWPVElijGSjGLFGpXkESuPNpbwmeDVOMGiInzy9rHXqApruXOzWuFY9N3DerZ_qNOgSuiruYziaoYnpCmtyRqT2xXth3kVUNoDIWQhEMdrFtfxbcNPnUD7yCQYZKWMkn8wDYgHrA6bgjsLULlg7wpAa7pl1E-lz4QyIYaB8jpxqBY786zyAdpT6bimdpC6llQ3hgY9F75QZdgj2xxWVL4ccEmJAci6fV11-yW9NSU3nSDTL2LzZlG-WgaGXx07H7IKb0Pw1Kz9Qgx8yF53jX0wvEPYl3PXctDJ-Lk-m3e2flj_VB5F6jjeR7nGG8LaIbeNb0Rozl1KR33dEovNlQlfp7biiFwP62TAHXiD7Pnh4XL-tmOeIe20AfjK7IsMp3MjhbZSH8LWmFkzxbuW0N1an766Uw2Eq6pn9VVgdK-L-2lLrEO6S29Qc1T9P0fbnmAKw)
+
+### Explanation of the Diagram:
+- **User (U)**: The end-user interacting with the frontend.
+- **Frontend (F)**: Your web application's frontend that interacts with the user and the backend.
+- **Backend (B)**: The server-side component that handles OAuth with Twitter, fetching tweets, and analyzing content.
+- **Twitter (T)**: The Twitter platform that handles OAuth and provides access to user tweets.
+
+### Steps:
+1. **User Action**: The user clicks 'Log in with Twitter' on the frontend.
+2. **OAuth Start**: The frontend opens a new tab redirecting the user to the backend `/start-auth` endpoint with the callback URL.
+3. **OAuth Token Request**: The backend requests an OAuth token from Twitter.
+4. **Twitter Response**: Twitter returns an OAuth token to the backend.
+5. **User Redirect to Twitter**: The backend redirects the user to the Twitter authentication URL in the newly opened tab.
+6. **User Authorizes**: The user logs into Twitter and authorizes the application.
+7. **Callback to Backend**: Twitter redirects the user back to the specified callback URL on the backend, providing an OAuth verifier.
+8. **Access Token Request**: The backend requests an access token from Twitter using the verifier.
+9. **Twitter Provides Tokens**: Twitter sends the access token and secret back to the backend.
+10. **Token Passing**: The backend passes the tokens to the frontend via `postMessage`, and the popup window is closed.
+11. **Token Storage**: The frontend securely stores the tokens in session storage or variables.
+12. **User Actions**: The user performs actions such as 'Retweet', 'Like', or 'Share' via the frontend interface.
+13. **Action Requests**: The frontend sends requests to the backend to perform the selected actions using the stored access tokens.
+14. **Twitter Action Execution**: The backend makes API calls to Twitter to execute the actions (retweet, like, share).
+15. **Display Results**: The frontend displays the results of the actions to the user (success or failure).
+
+### Additional Details:
+- **Secure Token Handling**: The tokens are never exposed directly in the frontend code or stored insecurely. They are only transmitted using secure methods and stored temporarily as needed for making API requests.
+- **User Interaction and Experience**: The use of a popup window for OAuth ensures that the user does not navigate away from the original application, improving the user experience by keeping the context intact.
+- **Action Specificity**: By specifying that the user can perform actions such as retweeting, liking, and sharing directly after authentication, the steps reflect a more interactive and dynamic use of the Twitter API.
+- **Backend and Frontend Roles**: The delineation between backend and frontend responsibilities is made clear, emphasizing security and efficient data handling.
 
 ## Installation and Setup
 ### Setting Up Twitter API Keys
