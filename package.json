@@ -22,7 +22,6 @@
   },
   "homepage": "https://github.com/BTI-US/Lotso-Twitter-Auth#readme",
   "devDependencies": {
-    "oauth": "^0.10.0",
-    "twitter": "^1.7.1"
+    "oauth": "^0.10.0"
   }
 }

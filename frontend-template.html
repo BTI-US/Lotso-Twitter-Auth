@@ -8,10 +8,12 @@
     <button id="start-auth">Login with Twitter</button>
     <button id="retweet" style="display:none;">Retweet</button>
     <button id="like" style="display:none;">Like</button>
-    <button id="share" style="display:none;">Share</button>
+    <button id="bookmark" style="display:none;">Bookmark</button>
+    <button id="follow" style="display:none;">Follow</button>
 
     <script>
         const backendUrl = 'https://oauth.btiplatform.com';
+        const tweetId = 'test'; // Replace with the tweet ID you want to perform actions on
 
         document.getElementById('start-auth').addEventListener('click', function() {
             const callbackUrl = encodeURIComponent('https://lotso.org/twitter-callback');
@@ -34,7 +36,8 @@
                 // Show action buttons if tokens are available
                 document.getElementById('retweet').style.display = 'inline';
                 document.getElementById('like').style.display = 'inline';
-                document.getElementById('share').style.display = 'inline';
+                document.getElementById('bookmark').style.display = 'inline';
+                document.getElementById('follow').style.display = 'inline';
 
                 // Attach event handlers to buttons
                 document.getElementById('retweet').addEventListener('click', function() {
@@ -43,9 +46,24 @@
                 document.getElementById('like').addEventListener('click', function() {
                     performAction('like', accessToken, accessTokenSecret);
                 });
-                document.getElementById('share').addEventListener('click', function() {
-                    performAction('share', accessToken, accessTokenSecret);
+                document.getElementById('bookmark').addEventListener('click', function() {
+                    performAction('bookmark', accessToken, accessTokenSecret);
                 });
+                document.getElementById('follow').addEventListener('click', function() {
+                    performAction('follow', accessToken, accessTokenSecret);
+                });
+            }
+        }
+
+        function displayInfo(action, message) {
+            if (action === 'retweet') {
+                document.getElementById('repostMessage').innerText = message;
+            } else if (action === 'like') {
+                document.getElementById('likeMessage').innerText = message;
+            } else if (action === 'bookmark') {
+                document.getElementById('bookmarkMessage').innerText = message;
+            } else if (action === 'follow') {
+                document.getElementById('followMessage').innerText = message;
             }
         }
 
@@ -57,15 +75,18 @@
                 },
                 body: JSON.stringify({
                     accessToken: accessToken,
-                    accessTokenSecret: accessTokenSecret
+                    accessTokenSecret: accessTokenSecret,
+                    tweetId: tweetId
                 })
             })
             .then(response => response.json())
             .then(data => {
                 console.log(`${action} action response:`, data);
+                displayInfo(action, data.message);
             })
             .catch(error => {
                 console.error('Error performing action:', error);
+                displayInfo(action, 'Error performing action');
             });
         }
 

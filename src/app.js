@@ -79,10 +79,16 @@ exports.handler = async (event, context) => {
         return likeTweet(accessToken, accessTokenSecret, tweetId);
     }
 
-    // Handle the share request
-    else if (event.path === '/share') {
-        const { accessToken, accessTokenSecret, tweetId, recipientId } = event.queryStringParameters;
-        return shareTweet(accessToken, accessTokenSecret, tweetId, recipientId);
+    // Handle the bookmark request
+    else if (event.path === '/bookmark') {
+        const { accessToken, accessTokenSecret, tweetId } = event.queryStringParameters;
+        return bookmarkTweet(accessToken, accessTokenSecret, tweetId);
+    }
+
+    // Handle the follow request
+    else if (event.path === '/follow') {
+        const { accessToken, accessTokenSecret, userId } = event.queryStringParameters;
+        return followUser(accessToken, accessTokenSecret, userId);
     }
 };
 
@@ -122,6 +128,39 @@ function makeAuthenticatedRequest(accessToken, accessTokenSecret, method, url, b
     });
 }
 
+function getUserTwitterId(accessToken, accessTokenSecret) {
+    const oauth = new OAuth(
+        'https://api.twitter.com/oauth/request_token',
+        'https://api.twitter.com/oauth/access_token',
+        process.env.TWITTER_CONSUMER_KEY,
+        process.env.TWITTER_CONSUMER_SECRET,
+        '1.0A',
+        null,
+        'HMAC-SHA1'
+    );
+
+    return new Promise((resolve, reject) => {
+        const url = 'https://api.twitter.com/1.1/account/verify_credentials.json';
+        oauth.get(
+            url,
+            accessToken,  // OAuth access token
+            accessTokenSecret,  // OAuth access token secret
+            (error, data, response) => {
+                if (error) {
+                    reject(error);
+                } else {
+                    try {
+                        const parsedData = JSON.parse(data);
+                        resolve(parsedData.id_str);  // Returns the string version of the user's ID
+                    } catch (parseError) {
+                        reject(parseError);
+                    }
+                }
+            }
+        );
+    });
+}
+
 /**
  * @brief Retweets a tweet using the provided access token and access token secret.
  * 
@@ -150,32 +189,67 @@ function retweetTweet(accessToken, accessTokenSecret, tweetId) {
  * @note This function makes an authenticated request to the Twitter API to like a tweet.
  */
 function likeTweet(accessToken, accessTokenSecret, tweetId) {
-    const url = `https://api.twitter.com/2/users/${process.env.TWITTER_USER_ID}/likes`;
-    const body = JSON.stringify({ tweet_id: tweetId });
-    return makeAuthenticatedRequest(accessToken, accessTokenSecret, 'POST', url, body);
+    return getUserTwitterId(accessToken, accessTokenSecret)
+        .then(userId => {
+            const url = `https://api.twitter.com/2/users/${userId}/likes`;
+            const body = JSON.stringify({ tweet_id: tweetId });
+            return makeAuthenticatedRequest(accessToken, accessTokenSecret, 'POST', url, body);
+        })
+        .catch(error => {
+            console.error('Failed to retrieve Twitter user ID:', error);
+            throw error;  // Re-throw the error to handle it further up the call stack if necessary
+        });
 }
 
 /**
- * @brief Shares a tweet with a recipient on Twitter.
+ * @brief Bookmarks a tweet using the provided access tokens.
  * 
  * @param {string} accessToken - The access token for authenticating the request.
  * @param {string} accessTokenSecret - The access token secret for authenticating the request.
- * @param {string} tweetId - The ID of the tweet to share.
- * @param {string} recipientId - The ID of the recipient user.
+ * @param {string} tweetId - The ID of the tweet to be bookmarked.
  * 
  * @return {Promise} A promise that resolves to the response of the API request.
  * 
- * @note This function makes an authenticated request to the Twitter API to send a direct message
- *       containing a link to the specified tweet to the recipient user.
+ * @note This function makes an authenticated request to the Twitter API to bookmark a tweet.
  */
-function shareTweet(accessToken, accessTokenSecret, tweetId, recipientId) {
-    const url = `https://api.twitter.com/2/users/${recipientId}/messages`;
-    const messageContent = `Check out this tweet: https://twitter.com/i/web/status/${tweetId}`;
-    const body = JSON.stringify({
-        message_create: {
-            target: { recipient_id: recipientId },
-            message_data: { text: messageContent }
-        }
-    });
-    return makeAuthenticatedRequest(accessToken, accessTokenSecret, 'POST', url, body);
+function bookmarkTweet(accessToken, accessTokenSecret, tweetId) {
+    return getUserTwitterId(accessToken, accessTokenSecret)
+        .then(userId => {
+            const url = `https://api.twitter.com/2/users/${userId}/bookmarks`;
+            const body = JSON.stringify({ tweet_id: tweetId });
+            return makeAuthenticatedRequest(accessToken, accessTokenSecret, 'POST', url, body);
+        })
+        .catch(error => {
+            console.error('Failed to retrieve Twitter user ID:', error);
+            throw error;  // Re-throw the error to handle it further up the call stack if necessary
+        });
 }
+
+/**
+ * @brief Follows a user on Twitter using the provided access tokens.
+ * 
+ * @param {string} accessToken - The access token for the authenticated user.
+ * @param {string} accessTokenSecret - The access token secret for the authenticated user.
+ * @param {string} targetUserId - The ID of the user to follow.
+ * 
+ * @return {Promise} A promise that resolves when the user has been followed successfully.
+ * 
+ * @note This function first obtains the current user's Twitter ID and then makes an authenticated
+ * request to follow the specified user using the obtained ID.
+ */
+function followUser(accessToken, accessTokenSecret, targetUserId) {
+    // First, obtain the current user's Twitter ID
+    return getUserTwitterId(accessToken, accessTokenSecret)
+        .then(sourceUserId => {
+            const url = `https://api.twitter.com/2/users/${sourceUserId}/following`;
+            const body = JSON.stringify({
+                target_user_id: targetUserId // ID of the user to follow
+            });
+            return makeAuthenticatedRequest(accessToken, accessTokenSecret, 'POST', url, body);
+        })
+        .catch(error => {
+            console.error('Failed to retrieve Twitter user ID or follow user:', error);
+            throw error;  // Re-throw the error to handle it further up the call stack if necessary
+        });
+}
+
