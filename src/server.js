@@ -1,6 +1,27 @@
 const express = require('express');
 const OAuth = require('oauth').OAuth;
+const cors = require('cors');
+const session = require('express-session');
+const crypto = require('crypto');
 const app = express();
+
+if (!process.env.DOCKER_ENV) {
+    require('dotenv').config();
+}
+
+// Only allow your specific frontend domain and enable credentials
+const corsOptions = {
+    origin: 'https://lotso.org', // Specify the exact URL of your frontend
+    credentials: true, // Enable credentials
+};
+
+app.use(cors(corsOptions));
+app.use(session({
+    secret: generateSecretKey(), // Generate a random secret key for the session
+    resave: false,
+    saveUninitialized: true,
+    cookie: { secure: true } // Use secure cookies in production environments with HTTPS
+}));
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -14,7 +35,7 @@ const oauth = new OAuth(
     TWITTER_CONSUMER_KEY,
     TWITTER_CONSUMER_SECRET,
     '1.0A',
-    null,
+    'https://oauth.btiplatform.com/twitter-callback',
     'HMAC-SHA1'
 );
 
@@ -22,15 +43,17 @@ app.get('/start-auth', (req, res) => {
     const callbackUrl = decodeURIComponent(req.query.callback);
     oauth.getOAuthRequestToken({ oauth_callback: callbackUrl }, (error, oauthToken, oauthTokenSecret, results) => {
         if (error) {
+            console.error('Failed to get OAuth request token:', error);
             res.status(500).json(error);
         } else {
             const url = `https://api.twitter.com/oauth/authenticate?oauth_token=${oauthToken}`;
+            console.log('Redirecting user to Twitter authentication page');
             res.redirect(url);
         }
     });
 });
 
-app.get('/callback', (req, res) => {
+app.get('/twitter-callback', (req, res) => {
     const { oauth_token, oauth_verifier } = req.query;
     oauth.getOAuthAccessToken(
         oauth_token,
@@ -38,16 +61,68 @@ app.get('/callback', (req, res) => {
         oauth_verifier,
         (error, accessToken, accessTokenSecret, results) => {
             if (error) {
+                console.error('Error getting OAuth access token:', error);
                 res.status(500).json({ status: 'failure', error: error });
             } else {
-                res.status(200).json({
-                    status: 'success',
-                    accessToken: accessToken,
-                    accessTokenSecret: accessTokenSecret
-                });
+                // Store tokens in the session
+                req.session.accessToken = accessToken;
+                req.session.accessTokenSecret = accessTokenSecret;
+                // Redirect to the frontend with a session identifier
+                res.redirect(`https://lotso.org/auth-success.html?session_id=${req.sessionID}`);
+                // res.status(200).json({
+                //     status: 'success',
+                //     accessToken: accessToken,
+                //     accessTokenSecret: accessTokenSecret
+                // });
             }
         }
     );
+});
+
+app.get('/check-auth-status', (req, res) => {
+    // Check session or other secure authentication methods
+    if (req.session.accessToken && req.session.accessTokenSecret) {
+        res.json({ isAuthenticated: true });
+    } else {
+        res.json({ isAuthenticated: false });
+    }
+});
+app.options('/check-auth-status', cors(corsOptions)); // Enable preflight request for this endpoint
+
+app.get('/check-retweet', (req, res) => {
+    const { accessToken, accessTokenSecret, tweetId } = req.query;
+
+    checkIfRetweeted(accessToken, accessTokenSecret, tweetId)
+        .then(result => res.json(result))
+        .catch(error => res.status(500).json({
+            error: "Failed to check retweet status",
+            details: error
+        }));
+});
+
+app.get('/check-follow', (req, res) => {
+    const { accessToken, accessTokenSecret, targetUserId } = req.query;
+    checkIfFollowed(accessToken, accessTokenSecret, targetUserId)
+        .then(result => res.json(result))
+        .catch(error => res.status(500).json({ error: error.toString() }));
+});
+
+app.get('/check-like', (req, res) => {
+    const { accessToken, accessTokenSecret, tweetId } = req.query;
+    checkIfLiked(accessToken, accessTokenSecret, tweetId)
+        .then(result => res.json(result))
+        .catch(error => res.status(500).json({ error: error.toString() }));
+});
+
+app.get('/get-tokens', (req, res) => {
+    if (req.session.accessToken && req.session.accessTokenSecret) {
+        res.json({
+            accessToken: req.session.accessToken,
+            accessTokenSecret: req.session.accessTokenSecret
+        });
+    } else {
+        res.status(403).json({error: 'No session or tokens found'});
+    }
 });
 
 app.get('/retweet', (req, res) => {
@@ -80,6 +155,11 @@ app.get('/follow', (req, res) => {
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
+// Function to generate a secret key
+function generateSecretKey(length = 32) {
+    return crypto.randomBytes(length).toString('hex');
+}
 
 /**
  * @brief Makes an authenticated request to a specified URL using OAuth.
@@ -129,7 +209,7 @@ function getUserTwitterId(accessToken, accessTokenSecret) {
     );
 
     return new Promise((resolve, reject) => {
-        const url = 'https://api.twitter.com/1.1/account/verify_credentials.json';
+        const url = 'https://api.twitter.com/2/users/verify_credentials';
         oauth.get(
             url,
             accessToken,  // OAuth access token
@@ -176,11 +256,7 @@ function retweetTweet(accessToken, accessTokenSecret, tweetId) {
         })
         .catch(error => { 
             console.error('Failed to retweet tweet:', error);
-            return {
-                error: true, 
-                statusCode: error.statusCode || 500, 
-                message: error.message || 'Internal Server Error' 
-            };
+            throw error;  // Rethrow error to be handled by the caller
         });
 }
 
@@ -214,11 +290,7 @@ function likeTweet(accessToken, accessTokenSecret, tweetId) {
         })
         .catch(error => {
             console.error('Failed to retrieve Twitter user ID:', error);
-            return {
-                error: true,
-                statusCode: error.statusCode || 500,
-                message: error.message || 'Internal Server Error'
-            };
+            throw error;  // Rethrow error to be handled by the caller
         });
 }
 
@@ -252,11 +324,7 @@ function bookmarkTweet(accessToken, accessTokenSecret, tweetId) {
         })
         .catch(error => {
             console.error('Failed to retrieve Twitter user ID:', error);
-            return {
-                error: true,
-                statusCode: error.statusCode || 500,
-                message: error.message || 'Internal Server Error'
-            };
+            throw error;  // Rethrow error to be handled by the caller
         });
 }
 
@@ -294,11 +362,87 @@ function followUser(accessToken, accessTokenSecret, targetUserId) {
         })
         .catch(error => {
             console.error('Failed to retrieve Twitter user ID or follow user:', error);
-            return { 
-                error: true, 
-                statusCode: error.statusCode || 500, 
-                message: error.message || "Internal Server Error" 
-            };
+            throw error;  // Rethrow error to be handled by the caller
         });
 }
 
+/**
+ * @brief Checks if a tweet has been retweeted by the user.
+ * 
+ * @param {string} accessToken - The access token for authenticating the request.
+ * @param {string} accessTokenSecret - The access token secret for authenticating the request.
+ * @param {string} tweetId - The ID of the tweet to check for retweets.
+ * 
+ * @return {Promise<{retweeted: boolean}>} - A promise that resolves to an object containing the retweeted status.
+ * 
+ * @note This function makes an authenticated request to the Twitter API to fetch the user's timeline tweets
+ * and checks if any tweet is a retweet of the specified tweetId.
+ * If an error occurs during the process, it will be logged and rethrown to be handled by the caller.
+ */
+function checkIfRetweeted(accessToken, accessTokenSecret, tweetId) {
+    // Twitter API endpoint to fetch user's timeline tweets
+    const url = `https://api.twitter.com/2/users/${userId}/tweets?tweet.fields=retweeted_status&max_results=10`;
+
+    return makeAuthenticatedRequest(accessToken, accessTokenSecret, 'GET', url)
+        .then(tweets => {
+            // Check if any tweet is a retweet of the specified tweetId
+            const retweeted = tweets.some(tweet => tweet.retweeted_status && tweet.retweeted_status.id_str === tweetId);
+            return { retweeted };
+        })
+        .catch(error => {
+            console.error('Error checking if retweeted:', error);
+            throw error;  // Rethrow error to be handled by the caller
+        });
+}
+
+/**
+ * @brief Checks if the authenticated user is following another user on Twitter.
+ * 
+ * @param {string} accessToken - The access token for the authenticated user.
+ * @param {string} accessTokenSecret - The access token secret for the authenticated user.
+ * @param {string} targetUserId - The ID of the user to check if the authenticated user is following.
+ * 
+ * @return {Promise<{isFollowing: boolean}>} A promise that resolves to an object containing the following status.
+ * @note This function makes an authenticated request to the Twitter API to check the relationship between the authenticated user and the target user.
+ * If the authenticated user is following the target user, the promise resolves to { isFollowing: true }, otherwise it resolves to { isFollowing: false }.
+ * If there is an error during the request, the promise is rejected with the error.
+ */
+function checkIfFollowed(accessToken, accessTokenSecret, targetUserId) {
+    // Twitter API endpoint to check if the authenticated user is following another user
+    const url = `https://api.twitter.com/2/users/${targetUserId}/following`;
+
+    return makeAuthenticatedRequest(accessToken, accessTokenSecret, 'GET', url)
+        .then(response => {
+            return { isFollowing: response.relationship.source.following };
+        })
+        .catch(error => {
+            console.error('Error checking if followed:', error);
+            throw error;  // Rethrow error to be handled by the caller
+        });
+}
+
+/**
+ * @brief Checks if a user has liked a specific tweet.
+ * 
+ * @param {string} accessToken - The access token for authenticating the request.
+ * @param {string} accessTokenSecret - The access token secret for authenticating the request.
+ * @param {string} tweetId - The ID of the tweet to check if liked.
+ * 
+ * @return {Promise<{ hasLiked: boolean }>} - A promise that resolves to an object containing the result of the check.
+ * @note This function makes an authenticated request to the Twitter API to fetch the user's liked tweets and checks if any of them match the specified tweetId.
+ */
+function checkIfLiked(accessToken, accessTokenSecret, tweetId) {
+    // Twitter API endpoint to fetch the user's likes
+    const url = `https://api.twitter.com/2/users/${userId}/liked_tweets`;
+
+    return makeAuthenticatedRequest(accessToken, accessTokenSecret, 'GET', url)
+        .then(tweets => {
+            // Check if any liked tweet matches the specified tweetId
+            const hasLiked = tweets.some(tweet => tweet.id_str === tweetId);
+            return { hasLiked };
+        })
+        .catch(error => {
+            console.error('Error checking if liked:', error);
+            throw error;
+        });
+}

@@ -1,5 +1,24 @@
 # Twitter OAuth Docker Project
 
+## Table of Contents
+
+- [Overview](#overview)
+- [Features](#features)
+- [Requirements](#requirements)
+- [Diagram](#diagram)
+  - [Explanation of the Diagram](#explanation-of-the-diagram)
+  - [Additional Details](#additional-details)
+- [Installation and Setup](#installation-and-setup)
+   - [Setting Up Twitter API Keys](#setting-up-twitter-api-keys)
+   - [Building the Docker Image](#building-the-docker-image)
+- [Running the Application](#running-the-application)
+- [How to Acquire Twitter API Keys](#how-to-acquire-twitter-api-keys)
+   - [User Authentication Settings](#user-authentication-settings)
+- [Usage](#usage)
+- [Testing](#testing)
+- [Contributing](#contributing)
+- [License](#license)
+
 ## Overview
 This project implements a serverless function hosted within a Docker container to facilitate the OAuth authentication of Twitter users and enable interaction with Twitter's API directly from the frontend. The application allows users not only to check their tweets but also to engage with them by performing actions such as retweeting, liking, and sharing directly through the application.
 
@@ -64,14 +83,39 @@ This project implements a serverless function hosted within a Docker container t
 ## Running the Application
 Run the Docker container with the necessary environment variables:
 ```bash
-docker run -e TWITTER_CONSUMER_KEY='your_key' -e TWITTER_CONSUMER_SECRET='your_secret' -p 5000:5000 twitter-auth
+docker run -e DOCKER_ENV=true TWITTER_CONSUMER_KEY='your_key' -e TWITTER_CONSUMER_SECRET='your_secret' -p 5000:5000 twitter-auth
 ```
 
+## How to Acquire Twitter API Keys
+
+1. Go to the [Twitter Developer Portal](https://developer.twitter.com/en/portal/dashboard).
+2. Click on 'Projects & Apps' and then 'Overview'.
+3. Click on 'Create App'.
+4. Fill in the required details and create the app.
+5. Go to the 'Keys and Tokens' tab.
+6. Copy the 'API Key' and 'API Secret Key' and use them as your `TWITTER_CONSUMER_KEY` and `TWITTER_CONSUMER_SECRET`.
+
+### User Authentication Settings
+
+1. Click the 'Edit' button in the 'User Authentication Settings' section.
+2. In the `App permission` field, select 'Read and write'.
+3. In the `Type of App` field, select 'Web App, Automated App or Bot'.
+4. In the `App info` field, set the `Callback URL / Redirect URL` to `https://oauth.btiplatform.com/twitter-callback`, and set the `Website URL` to `https://lotso.org`.
+5. Click 'Save'.
+
 ## Usage
-The application has three main endpoints:
+The application has the following endpoints:
 - `/start-auth`: Initiates the OAuth process.
-- `/callback`: Handles the callback from Twitter and exchanges the request token for an access token.
-- `/check-tweets`: Checks the authenticated user's tweets for specific content.
+- `/twitter-callback`: Handles the callback from Twitter and exchanges the request token for an access token.
+- `/retweet`: Retweets a specific tweet.
+- `/like`: Likes a specific tweet.
+- `/bookmark`: Bookmarks a specific tweet.
+- `/follow`: Follows a specific user.
+- `/check-auth-status`: Checks if the user is authenticated.
+- `/check-retweet`: Checks if a tweet has been retweeted by the user.
+- `/check-like`: Checks if a tweet has been liked by the user.
+- `/check-follow`: Checks if a user is being followed by the authenticated user.
+- `/get-tokens`: Retrieves the access tokens for the authenticated user.
 
 ## Testing
 Describe how to run tests for this application, if applicable.
