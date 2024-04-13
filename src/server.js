@@ -52,6 +52,7 @@ app.get('/start-auth', (req, res) => {
         }
     });
 });
+app.options('/start-auth', cors(corsOptions)); // Enable preflight request for this endpoint
 
 app.get('/twitter-callback', (req, res) => {
     const { oauth_token, oauth_verifier } = req.query;
@@ -67,6 +68,8 @@ app.get('/twitter-callback', (req, res) => {
                 // Store tokens in the session
                 req.session.accessToken = accessToken;
                 req.session.accessTokenSecret = accessTokenSecret;
+                console.log('Access token:', accessToken);
+                console.log('Access token secret:', accessTokenSecret);
                 // Redirect to the frontend with a session identifier
                 res.redirect(`https://lotso.org/auth-success.html?session_id=${req.sessionID}`);
                 // res.status(200).json({
@@ -80,6 +83,7 @@ app.get('/twitter-callback', (req, res) => {
 });
 
 app.get('/check-auth-status', (req, res) => {
+    console.log("Session Data:", req.session);  // TEST: Log session data for debugging
     // Check session or other secure authentication methods
     if (req.session.accessToken && req.session.accessTokenSecret) {
         res.json({ isAuthenticated: true });
@@ -90,68 +94,91 @@ app.get('/check-auth-status', (req, res) => {
 app.options('/check-auth-status', cors(corsOptions)); // Enable preflight request for this endpoint
 
 app.get('/check-retweet', (req, res) => {
-    const { accessToken, accessTokenSecret, tweetId } = req.query;
+    if (req.session.accessToken && req.session.accessTokenSecret) {
+        const { tweetId } = req.query;
 
-    checkIfRetweeted(accessToken, accessTokenSecret, tweetId)
-        .then(result => res.json(result))
-        .catch(error => res.status(500).json({
-            error: "Failed to check retweet status",
-            details: error
-        }));
+        checkIfRetweeted(req.session.accessToken, req.session.accessTokenSecret, tweetId)
+            .then(result => res.json(result))
+            .catch(error => res.status(500).json({
+                error: "Failed to check retweet status",
+                details: error
+            }));
+    } else {
+        res.status(401).json({ error: 'Authentication required' });
+    }
 });
 
 app.get('/check-follow', (req, res) => {
-    const { accessToken, accessTokenSecret, targetUserId } = req.query;
-    checkIfFollowed(accessToken, accessTokenSecret, targetUserId)
-        .then(result => res.json(result))
-        .catch(error => res.status(500).json({ error: error.toString() }));
+    if (req.session.accessToken && req.session.accessTokenSecret) {
+        const { targetUserId } = req.query;
+
+        checkIfFollowed(req.session.accessToken, req.session.accessTokenSecret, targetUserId)
+            .then(result => res.json(result))
+            .catch(error => res.status(500).json({ error: error.toString() }));
+    } else {
+        res.status(401).json({ error: 'Authentication required' });
+    }
 });
 
 app.get('/check-like', (req, res) => {
-    const { accessToken, accessTokenSecret, tweetId } = req.query;
-    checkIfLiked(accessToken, accessTokenSecret, tweetId)
-        .then(result => res.json(result))
-        .catch(error => res.status(500).json({ error: error.toString() }));
-});
-
-app.get('/get-tokens', (req, res) => {
     if (req.session.accessToken && req.session.accessTokenSecret) {
-        res.json({
-            accessToken: req.session.accessToken,
-            accessTokenSecret: req.session.accessTokenSecret
-        });
+        const { tweetId } = req.query;
+
+        checkIfLiked(req.session.accessToken, req.session.accessTokenSecret, tweetId)
+            .then(result => res.json(result))
+            .catch(error => res.status(500).json({ error: error.toString() }));
     } else {
-        res.status(403).json({error: 'No session or tokens found'});
+        res.status(401).json({ error: 'Authentication required' });
     }
 });
 
 app.get('/retweet', (req, res) => {
-    const { accessToken, accessTokenSecret, tweetId } = req.query;
-    retweetTweet(accessToken, accessTokenSecret, tweetId)
-        .then(response => res.json(response))
-        .catch(error => res.status(500).json(error));
+    if (req.session.accessToken && req.session.accessTokenSecret) {
+        const { tweetId } = req.query;
+        retweetTweet(req.session.accessToken, req.session.accessTokenSecret, tweetId)
+            .then(response => res.json(response))
+            .catch(error => res.status(500).json(error));
+    } else {
+        res.status(401).json({ error: 'Authentication required' });
+    }
 });
+app.options('/retweet', cors(corsOptions)); // Enable preflight request for this endpoint
 
 app.get('/like', (req, res) => {
-    const { accessToken, accessTokenSecret, tweetId } = req.query;
-    likeTweet(accessToken, accessTokenSecret, tweetId)
-        .then(response => res.json(response))
-        .catch(error => res.status(500).json(error));
+    if (req.session.accessToken && req.session.accessTokenSecret) {
+        const { tweetId } = req.query;
+        likeTweet(req.session.accessToken, req.session.accessTokenSecret, tweetId)
+            .then(response => res.json(response))
+            .catch(error => res.status(500).json(error));
+    } else {
+        res.status(401).json({ error: 'Authentication required' });
+    }
 });
+app.options('/like', cors(corsOptions)); // Enable preflight request for this endpoint
 
 app.get('/bookmark', (req, res) => {
-    const { accessToken, accessTokenSecret, tweetId } = req.query;
-    bookmarkTweet(accessToken, accessTokenSecret, tweetId)
-        .then(response => res.json(response))
-        .catch(error => res.status(500).json(error));
+    if (req.session.accessToken && req.session.accessTokenSecret) {
+        const { tweetId } = req.query;
+        bookmarkTweet(req.session.accessToken, req.session.accessTokenSecret, tweetId)
+            .then(response => res.json(response))
+            .catch(error => res.status(500).json(error));
+    } else {
+        res.status(401).json({ error: 'Authentication required' });
+    }
 });
+app.options('/bookmark', cors(corsOptions)); // Enable preflight request for this endpoint
 
 app.get('/follow', (req, res) => {
-    const { accessToken, accessTokenSecret, userId } = req.query;
-    followUser(accessToken, accessTokenSecret, userId)
-        .then(response => res.json(response))
-        .catch(error => res.status(500).json(error));
+    if (req.session.accessToken && req.session.accessTokenSecret) {
+        const { userId } = req.query;
+        followUser(req.session.accessToken, req.session.accessTokenSecret, userId)
+            .then(response => res.json(response))
+            .catch(error => res.status(500).json(error));
+    } else {
+        res.status(401).json({ error: 'Authentication required' });
+    }
 });
+app.options('/follow', cors(corsOptions)); // Enable preflight request for this endpoint
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
