@@ -1,103 +1,85 @@
+const express = require('express');
 const OAuth = require('oauth').OAuth;
+const app = express();
 
-exports.handler = async (event, context) => {
-    const consumerKey = process.env.TWITTER_CONSUMER_KEY;
-    const consumerSecret = process.env.TWITTER_CONSUMER_SECRET;
-    // Extract callback URL from query parameters
-    const callbackUrl = decodeURIComponent(event.queryStringParameters.callback);
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-    const oauth = new OAuth(
-        'https://api.twitter.com/oauth/request_token',
-        'https://api.twitter.com/oauth/access_token',
-        consumerKey,
-        consumerSecret,
-        '1.0A',
-        callbackUrl, // Dynamically set the callback URL
-        'HMAC-SHA1'
+const TWITTER_CONSUMER_KEY = process.env.TWITTER_CONSUMER_KEY;
+const TWITTER_CONSUMER_SECRET = process.env.TWITTER_CONSUMER_SECRET;
+
+const oauth = new OAuth(
+    'https://api.twitter.com/oauth/request_token',
+    'https://api.twitter.com/oauth/access_token',
+    TWITTER_CONSUMER_KEY,
+    TWITTER_CONSUMER_SECRET,
+    '1.0A',
+    null,
+    'HMAC-SHA1'
+);
+
+app.get('/start-auth', (req, res) => {
+    const callbackUrl = decodeURIComponent(req.query.callback);
+    oauth.getOAuthRequestToken({ oauth_callback: callbackUrl }, (error, oauthToken, oauthTokenSecret, results) => {
+        if (error) {
+            res.status(500).json(error);
+        } else {
+            const url = `https://api.twitter.com/oauth/authenticate?oauth_token=${oauthToken}`;
+            res.redirect(url);
+        }
+    });
+});
+
+app.get('/callback', (req, res) => {
+    const { oauth_token, oauth_verifier } = req.query;
+    oauth.getOAuthAccessToken(
+        oauth_token,
+        null,
+        oauth_verifier,
+        (error, accessToken, accessTokenSecret, results) => {
+            if (error) {
+                res.status(500).json({ status: 'failure', error: error });
+            } else {
+                res.status(200).json({
+                    status: 'success',
+                    accessToken: accessToken,
+                    accessTokenSecret: accessTokenSecret
+                });
+            }
+        }
     );
+});
 
-    // Initiate the OAuth process and redirect to Twitter
-    if (event.path === '/start-auth') {
-        return new Promise((resolve, reject) => {
-            oauth.getOAuthRequestToken((error, oauthToken, oauthTokenSecret, results) => {
-                if (error) {
-                    resolve({
-                        statusCode: 500,
-                        body: JSON.stringify(error)
-                    });
-                } else {
-                    // Redirect user to Twitter for authorization
-                    const url = `https://api.twitter.com/oauth/authenticate?oauth_token=${oauthToken}`;
-                    resolve({
-                        statusCode: 302,
-                        headers: { Location: url },
-                        body: ''
-                    });
-                }
-            });
-        });
-    }
+app.get('/retweet', (req, res) => {
+    const { accessToken, accessTokenSecret, tweetId } = req.query;
+    retweetTweet(accessToken, accessTokenSecret, tweetId)
+        .then(response => res.json(response))
+        .catch(error => res.status(500).json(error));
+});
 
-    // Handle the callback from Twitter
-    else if (event.path === '/callback') {
-        const oauthToken = event.queryStringParameters.oauth_token;
-        const oauthVerifier = event.queryStringParameters.oauth_verifier;
+app.get('/like', (req, res) => {
+    const { accessToken, accessTokenSecret, tweetId } = req.query;
+    likeTweet(accessToken, accessTokenSecret, tweetId)
+        .then(response => res.json(response))
+        .catch(error => res.status(500).json(error));
+});
 
-        return new Promise((resolve, reject) => {
-            oauth.getOAuthAccessToken(
-                oauthToken,
-                null, // token secret is not needed here
-                oauthVerifier,
-                (error, accessToken, accessTokenSecret, results) => {
-                    if (error) {
-                        resolve({
-                            statusCode: 500,
-                            body: JSON.stringify({
-                                status: 'failure',
-                                error: error
-                            })
-                        });
-                    } else {
-                        // You should securely store these tokens and associate them with the user's session
-                        // For now, we'll send them back to the frontend (but this is not recommended in production!)
-                        resolve({
-                            statusCode: 200,
-                            body: JSON.stringify({
-                                status: 'success',
-                                accessToken: accessToken,
-                                accessTokenSecret: accessTokenSecret
-                            })
-                        });
-                    }
-                }
-            );
-        });
-    }
+app.get('/bookmark', (req, res) => {
+    const { accessToken, accessTokenSecret, tweetId } = req.query;
+    bookmarkTweet(accessToken, accessTokenSecret, tweetId)
+        .then(response => res.json(response))
+        .catch(error => res.status(500).json(error));
+});
 
-    // Handle the retweet request
-    else if (event.path === '/retweet') {
-        const { accessToken, accessTokenSecret, tweetId } = event.queryStringParameters;
-        return retweetTweet(accessToken, accessTokenSecret, tweetId);
-    }
+app.get('/follow', (req, res) => {
+    const { accessToken, accessTokenSecret, userId } = req.query;
+    followUser(accessToken, accessTokenSecret, userId)
+        .then(response => res.json(response))
+        .catch(error => res.status(500).json(error));
+});
 
-    // Handle the like request
-    else if (event.path === '/like') {
-        const { accessToken, accessTokenSecret, tweetId } = event.queryStringParameters;
-        return likeTweet(accessToken, accessTokenSecret, tweetId);
-    }
-
-    // Handle the bookmark request
-    else if (event.path === '/bookmark') {
-        const { accessToken, accessTokenSecret, tweetId } = event.queryStringParameters;
-        return bookmarkTweet(accessToken, accessTokenSecret, tweetId);
-    }
-
-    // Handle the follow request
-    else if (event.path === '/follow') {
-        const { accessToken, accessTokenSecret, userId } = event.queryStringParameters;
-        return followUser(accessToken, accessTokenSecret, userId);
-    }
-};
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 
 /**
  * @brief Makes an authenticated request to a specified URL using OAuth.

@@ -2,7 +2,7 @@
   "name": "lotso-twitter-auth",
   "version": "0.0.1",
   "description": "Authentication for Lotso Twitter account and tweets verification",
-  "main": "src/app.js",
+  "main": "src/server.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -22,6 +22,7 @@
   },
   "homepage": "https://github.com/BTI-US/Lotso-Twitter-Auth#readme",
   "devDependencies": {
+    "express": "^4.19.2",
     "oauth": "^0.10.0"
   }
 }

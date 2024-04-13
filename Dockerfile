@@ -4,6 +4,7 @@ FROM node:14
 # Define build arguments
 ARG TWITTER_CONSUMER_KEY
 ARG TWITTER_CONSUMER_SECRET
+ARG PORT
 
 # Set the working directory in the container
 WORKDIR /usr/src/app
@@ -14,11 +15,8 @@ COPY package*.json ./
 # Install any dependencies
 RUN npm install
 
-# Bundle your app's source code inside the Docker image
+# Copy local code to the container image.
 COPY src/ .
 
-# Make your service available on a specific port
-EXPOSE 5000
-
-# Define the command to run your app (adjust "app.js" if your file has a different name)
-CMD [ "node", "app.js" ]
+# Run the web service on container startup
+CMD [ "node", "server.js" ]
