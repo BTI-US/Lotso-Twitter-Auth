@@ -52,14 +52,21 @@ exports.handler = async (event, context) => {
                     if (error) {
                         resolve({
                             statusCode: 500,
-                            body: JSON.stringify(error)
+                            body: JSON.stringify({
+                                status: 'failure',
+                                error: error
+                            })
                         });
                     } else {
                         // You should securely store these tokens and associate them with the user's session
                         // For now, we'll send them back to the frontend (but this is not recommended in production!)
                         resolve({
                             statusCode: 200,
-                            body: JSON.stringify({ accessToken, accessTokenSecret })
+                            body: JSON.stringify({
+                                status: 'success',
+                                accessToken: accessToken,
+                                accessTokenSecret: accessTokenSecret
+                            })
                         });
                     }
                 }
@@ -174,7 +181,25 @@ function getUserTwitterId(accessToken, accessTokenSecret) {
  */
 function retweetTweet(accessToken, accessTokenSecret, tweetId) {
     const url = `https://api.twitter.com/2/tweets/${tweetId}/retweet`;
-    return makeAuthenticatedRequest(accessToken, accessTokenSecret, 'POST', url);
+    return makeAuthenticatedRequest(accessToken, accessTokenSecret, 'POST', url)
+        .then(response => {
+            // Assuming makeAuthenticatedRequest resolves with the parsed JSON data
+            if (response.errors) {
+                // If Twitter API returns errors, handle them here
+                const errorDetails = response.errors[0];
+                console.error(`Failed to retweet tweet, Error: ${errorDetails.detail}`);
+                throw new Error(`Failed to retweet tweet, Error: ${errorDetails.detail}`);
+            }
+            return response;  // If no errors, return the successful response
+        })
+        .catch(error => { 
+            console.error('Failed to retweet tweet:', error);
+            return {
+                error: true, 
+                statusCode: error.statusCode || 500, 
+                message: error.message || 'Internal Server Error' 
+            };
+        });
 }
 
 /**
@@ -193,11 +218,25 @@ function likeTweet(accessToken, accessTokenSecret, tweetId) {
         .then(userId => {
             const url = `https://api.twitter.com/2/users/${userId}/likes`;
             const body = JSON.stringify({ tweet_id: tweetId });
-            return makeAuthenticatedRequest(accessToken, accessTokenSecret, 'POST', url, body);
+            return makeAuthenticatedRequest(accessToken, accessTokenSecret, 'POST', url, body)
+                .then(response => {
+                    // Assuming makeAuthenticatedRequest resolves with the parsed JSON data
+                    if (response.errors) {
+                        // If Twitter API returns errors, handle them here
+                        const errorDetails = response.errors[0];
+                        console.error(`Failed to like tweet, Error: ${errorDetails.detail}`);
+                        throw new Error(`Failed to like tweet, Error: ${errorDetails.detail}`);
+                    }
+                    return response;  // If no errors, return the successful response
+                });
         })
         .catch(error => {
             console.error('Failed to retrieve Twitter user ID:', error);
-            throw error;  // Re-throw the error to handle it further up the call stack if necessary
+            return {
+                error: true,
+                statusCode: error.statusCode || 500,
+                message: error.message || 'Internal Server Error'
+            };
         });
 }
 
@@ -217,11 +256,25 @@ function bookmarkTweet(accessToken, accessTokenSecret, tweetId) {
         .then(userId => {
             const url = `https://api.twitter.com/2/users/${userId}/bookmarks`;
             const body = JSON.stringify({ tweet_id: tweetId });
-            return makeAuthenticatedRequest(accessToken, accessTokenSecret, 'POST', url, body);
+            return makeAuthenticatedRequest(accessToken, accessTokenSecret, 'POST', url, body)
+                .then(response => {
+                    // Assuming makeAuthenticatedRequest resolves with the parsed JSON data
+                    if (response.errors) {
+                        // If Twitter API returns errors, handle them here
+                        const errorDetails = response.errors[0];
+                        console.error(`Failed to bookmark tweet, Error: ${errorDetails.detail}`);
+                        throw new Error(`Failed to bookmark tweet, Error: ${errorDetails.detail}`);
+                    }
+                    return response;  // If no errors, return the successful response
+                });
         })
         .catch(error => {
             console.error('Failed to retrieve Twitter user ID:', error);
-            throw error;  // Re-throw the error to handle it further up the call stack if necessary
+            return {
+                error: true,
+                statusCode: error.statusCode || 500,
+                message: error.message || 'Internal Server Error'
+            };
         });
 }
 
@@ -245,11 +298,25 @@ function followUser(accessToken, accessTokenSecret, targetUserId) {
             const body = JSON.stringify({
                 target_user_id: targetUserId // ID of the user to follow
             });
-            return makeAuthenticatedRequest(accessToken, accessTokenSecret, 'POST', url, body);
+            return makeAuthenticatedRequest(accessToken, accessTokenSecret, 'POST', url, body)
+                .then(response => {
+                    // Directly use response as it is already a JSON object from makeAuthenticatedRequest
+                    if (response.errors) {
+                        // Check if there are any errors in the response JSON
+                        const errorDetails = response.errors[0];
+                        console.error(`Failed to follow user, Error: ${errorDetails.detail}`);
+                        throw new Error(`Failed to follow user, Error: ${errorDetails.detail}`);
+                    }
+                    return response; // Return the success response JSON
+                });
         })
         .catch(error => {
             console.error('Failed to retrieve Twitter user ID or follow user:', error);
-            throw error;  // Re-throw the error to handle it further up the call stack if necessary
+            return { 
+                error: true, 
+                statusCode: error.statusCode || 500, 
+                message: error.message || "Internal Server Error" 
+            };
         });
 }
 

@@ -79,10 +79,18 @@
                     tweetId: tweetId
                 })
             })
-            .then(response => response.json())
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Failed to perform ' + action + ' action');
+                }
+                return response.json();
+            })
             .then(data => {
+                if (data.error) {
+                    throw new Error(data.message);
+                }
                 console.log(`${action} action response:`, data);
-                displayInfo(action, data.message);
+                displayInfo(action, 'Success: ' + data.message);
             })
             .catch(error => {
                 console.error('Error performing action:', error);
