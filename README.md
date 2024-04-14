@@ -115,7 +115,7 @@ The application has the following endpoints:
 - `/retweet`: Retweets a specific tweet.
 - `/like`: Likes a specific tweet.
 - `/bookmark`: Bookmarks a specific tweet.
-- `/follow`: Follows a specific user.
+- `/follow-us`: Follows a specific user.
 - `/check-auth-status`: Checks if the user is authenticated.
 - `/check-retweet`: Checks if a tweet has been retweeted by the user.
 - `/check-like`: Checks if a tweet has been liked by the user.

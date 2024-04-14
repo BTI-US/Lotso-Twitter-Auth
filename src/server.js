@@ -1,4 +1,6 @@
 const express = require('express');
+const https = require('https');
+const fs = require('fs');
 const OAuth = require('oauth').OAuth;
 const cors = require('cors');
 const session = require('express-session');
@@ -28,6 +30,26 @@ redisClient.on('end', () => {
     console.log('Redis client has disconnected from the server.');
 });
 
+redisClient.on('reconnecting', () => {
+    console.log('Redis client is trying to reconnect to the server.');
+});
+
+redisClient.on('ready', () => {
+    console.log('Redis client is ready to accept requests.');
+});
+
+redisClient.on('warning', (warning) => {
+    console.log('Redis client received a warning:', warning);
+});
+
+redisClient.on('monitor', (time, args, source, database) => {
+    console.log('Redis client is monitoring:', time, args, source, database);
+});
+
+redisClient.on('message', (channel, message) => {
+    console.log('Redis client received a message:', channel, message);
+});
+
 if (!process.env.DOCKER_ENV) {
     require('dotenv').config();
 }
@@ -49,14 +71,22 @@ app.use(session({
     resave: false,
     saveUninitialized: true,
     cookie: {
-        secure: 'auto', // Set secure cookies based on the connection protocol
+        path: '/',
+        secure: true, // Set secure cookies based on the connection protocol
         httpOnly: true, // Protect against client-side scripting accessing the cookie
-        maxAge: 3600000 // Set cookie expiration, etc.
+        maxAge: 3600000, // Set cookie expiration, etc.
+        sameSite: 'None'
     }
 }));
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// TEST: Middleware to log session data for debugging
+app.use((req, res, next) => {
+    console.log("Session middleware check: Session ID is", req.sessionID);
+    next();
+});
 
 const TWITTER_CONSUMER_KEY = process.env.TWITTER_CONSUMER_KEY;
 const TWITTER_CONSUMER_SECRET = process.env.TWITTER_CONSUMER_SECRET;
@@ -100,47 +130,35 @@ app.get('/twitter-callback', (req, res) => {
                 // Store tokens in the session
                 req.session.accessToken = accessToken;
                 req.session.accessTokenSecret = accessTokenSecret;
-                console.log('Send Session ID:', req.sessionID);
-                console.log('Send Session Data:', req.session);  // TEST: Log session data for debugging
+                // Set a secure cookie for the session ID
+                res.cookie('session_id', req.sessionID, { httpOnly: true, secure: true, sameSite: 'None' });
                 // Redirect to the frontend with a session identifier
-                res.redirect(`http://localhost:8080/auth-success.html?session_id=${req.sessionID}`);
+                res.redirect('https://dev.lotso.org/auth-success.html');
             }
         }
     );
 });
 
 app.get('/check-auth-status', (req, res) => {
-    const sessionId = req.query.session_id;  // Get the session ID from query parameters
-    console.log("Received Session ID:", sessionId);
-
-    if (!sessionId) {
-        return res.status(400).send("No session ID provided");
+    // Assume the session ID is automatically managed through the cookie
+    if (!req.session) {
+        return res.status(400).send("No session found");
     }
 
-    // Retrieve the session from Redis
-    sessionStore.get(sessionId, (err, session) => {
-        if (err) {
-            console.error('Error retrieving session:', err);
-            return res.status(500).send("Failed to retrieve session");
-        }
-
-        if (session) {
-            console.log("Received Session Data:", session);  // Log session data for debugging
-
-            // Check if the session has the access token and token secret
-            if (session.accessToken && session.accessTokenSecret) {
-                res.json({ isAuthenticated: true });
-            } else {
-                res.json({ isAuthenticated: false });
-            }
-        } else {
-            res.status(404).send("Session not found");
-        }
-    });
+    // Check if the session has the access token and token secret
+    if (req.session.accessToken && req.session.accessTokenSecret) {
+        res.json({ isAuthenticated: true });
+    } else {
+        res.status(401).json({ isAuthenticated: false });
+    }
 });
 app.options('/check-auth-status', cors(corsOptions)); // Enable preflight request for this endpoint
 
 app.get('/check-retweet', (req, res) => {
+    if (!req.session) {
+        return res.status(400).send("No session found");
+    }
+
     if (req.session.accessToken && req.session.accessTokenSecret) {
         const { tweetId } = req.query;
 
@@ -157,12 +175,22 @@ app.get('/check-retweet', (req, res) => {
 app.options('/check-retweet', cors(corsOptions)); // Enable preflight request for this endpoint
 
 app.get('/check-follow', (req, res) => {
-    if (req.session.accessToken && req.session.accessTokenSecret) {
-        const { targetUserId } = req.query;
+    if (!req.session) {
+        return res.status(400).send("No session found");
+    }
 
-        checkIfFollowed(req.session.accessToken, req.session.accessTokenSecret, targetUserId)
-            .then(result => res.json(result))
-            .catch(error => res.status(500).json({ error: error.toString() }));
+    if (req.session.accessToken && req.session.accessTokenSecret) {
+        const { username } = req.query; // Get the username from the query parameters
+
+        // Fetch the user ID from the username first
+        fetchUserId(username, req.session.accessToken, req.session.accessTokenSecret)
+            .then(userId => {
+                // Now check if the user is followed using the fetched user ID
+                checkIfFollowed(req.session.accessToken, req.session.accessTokenSecret, userId)
+                    .then(result => res.json(result))
+                    .catch(error => res.status(500).json({ error: error.toString() }));
+            })
+            .catch(error => res.status(500).json({ error: error.message }));
     } else {
         res.status(401).json({ error: 'Authentication required' });
     }
@@ -170,6 +198,10 @@ app.get('/check-follow', (req, res) => {
 app.options('/check-follow', cors(corsOptions)); // Enable preflight request for this endpoint
 
 app.get('/check-like', (req, res) => {
+    if (!req.session) {
+        return res.status(400).send("No session found");
+    }
+
     if (req.session.accessToken && req.session.accessTokenSecret) {
         const { tweetId } = req.query;
 
@@ -183,6 +215,10 @@ app.get('/check-like', (req, res) => {
 app.options('/check-like', cors(corsOptions)); // Enable preflight request for this endpoint
 
 app.get('/retweet', (req, res) => {
+    if (!req.session) {
+        return res.status(400).send("No session found");
+    }
+
     if (req.session.accessToken && req.session.accessTokenSecret) {
         const { tweetId } = req.query;
         retweetTweet(req.session.accessToken, req.session.accessTokenSecret, tweetId)
@@ -195,6 +231,10 @@ app.get('/retweet', (req, res) => {
 app.options('/retweet', cors(corsOptions)); // Enable preflight request for this endpoint
 
 app.get('/like', (req, res) => {
+    if (!req.session) {
+        return res.status(400).send("No session found");
+    }
+
     if (req.session.accessToken && req.session.accessTokenSecret) {
         const { tweetId } = req.query;
         likeTweet(req.session.accessToken, req.session.accessTokenSecret, tweetId)
@@ -207,6 +247,10 @@ app.get('/like', (req, res) => {
 app.options('/like', cors(corsOptions)); // Enable preflight request for this endpoint
 
 app.get('/bookmark', (req, res) => {
+    if (!req.session) {
+        return res.status(400).send("No session found");
+    }
+
     if (req.session.accessToken && req.session.accessTokenSecret) {
         const { tweetId } = req.query;
         bookmarkTweet(req.session.accessToken, req.session.accessTokenSecret, tweetId)
@@ -218,20 +262,37 @@ app.get('/bookmark', (req, res) => {
 });
 app.options('/bookmark', cors(corsOptions)); // Enable preflight request for this endpoint
 
-app.get('/follow', (req, res) => {
+app.get('/follow-us', (req, res) => {
+    if (!req.session) {
+        return res.status(400).send("No session found");
+    }
+
     if (req.session.accessToken && req.session.accessTokenSecret) {
-        const { userId } = req.query;
-        followUser(req.session.accessToken, req.session.accessTokenSecret, userId)
-            .then(response => res.json(response))
-            .catch(error => res.status(500).json(error));
+        const { username } = req.query; // Get username from the query parameters
+
+        // Fetch the user ID from the username
+        fetchUserId(username, req.session.accessToken, req.session.accessTokenSecret)
+            .then(userId => {
+                // Use the userId to follow the user
+                followUser(req.session.accessToken, req.session.accessTokenSecret, userId)
+                    .then(response => res.json(response))
+                    .catch(error => res.status(500).json({ error: error.message }));
+            })
+            .catch(error => res.status(500).json({ error: error.message }));
     } else {
         res.status(401).json({ error: 'Authentication required' });
     }
 });
-app.options('/follow', cors(corsOptions)); // Enable preflight request for this endpoint
+app.options('/follow-us', cors(corsOptions)); // Enable preflight request for this endpoint
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+https.createServer({
+    key: fs.readFileSync('/etc/letsencrypt/live/btiplatform.com/privkey.pem'),
+    cert: fs.readFileSync('/etc/letsencrypt/live/btiplatform.com/fullchain.pem')
+}, app)
+.listen(PORT, () => {
+    console.log(`Listening on port ${PORT}!`);
+});
 
 // Function to generate a secret key
 function generateSecretKey(length = 32) {
@@ -274,6 +335,14 @@ function makeAuthenticatedRequest(accessToken, accessTokenSecret, method, url, b
     });
 }
 
+/**
+ * @brief Retrieves the Twitter user ID using the provided access token and access token secret.
+ * 
+ * @param {string} accessToken - The OAuth access token.
+ * @param {string} accessTokenSecret - The OAuth access token secret.
+ * @return {Promise<string>} - A promise that resolves with the string version of the user's ID.
+ * @note This function makes a request to the Twitter API to verify the user's credentials and retrieve their ID.
+ */
 function getUserTwitterId(accessToken, accessTokenSecret) {
     const oauth = new OAuth(
         'https://api.twitter.com/oauth/request_token',
@@ -402,6 +471,26 @@ function bookmarkTweet(accessToken, accessTokenSecret, tweetId) {
         .catch(error => {
             console.error('Failed to retrieve Twitter user ID:', error);
             throw error;  // Rethrow error to be handled by the caller
+        });
+}
+
+/**
+ * @brief Fetches the user ID for a given username using Twitter API.
+ *
+ * @param {string} username - The username of the user.
+ * @param {string} accessToken - The access token for authentication.
+ * @param {string} accessTokenSecret - The access token secret for authentication.
+ * @return {Promise<string>} A promise that resolves to the user ID.
+ * @throws {Error} If there is an error fetching the user ID.
+ * @note This function makes an authenticated request to the Twitter API to fetch the user ID
+ *       using the provided username, access token, and access token secret.
+ */
+function fetchUserId(username, accessToken, accessTokenSecret) {
+    const url = `https://api.twitter.com/2/users/by/username/${username}`;
+    return makeAuthenticatedRequest(accessToken, accessTokenSecret, 'GET', url)
+        .then(response => response.data.id)
+        .catch(error => {
+            throw new Error('Failed to fetch user ID');
         });
 }
 
