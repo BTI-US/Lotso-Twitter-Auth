@@ -4,6 +4,7 @@ const cors = require('cors');
 const session = require('express-session');
 const crypto = require('crypto');
 const app = express();
+app.set('trust proxy', 1); // Trust the first proxy
 
 if (!process.env.DOCKER_ENV) {
     require('dotenv').config();
@@ -20,7 +21,11 @@ app.use(session({
     secret: generateSecretKey(), // Generate a random secret key for the session
     resave: false,
     saveUninitialized: true,
-    cookie: { secure: true } // Use secure cookies in production environments with HTTPS
+    cookie: {
+        secure: true, // Ensure cookies are only sent over HTTPS
+        httpOnly: true, // Protect against client-side scripting accessing the cookie
+        maxAge: 3600000 // Set cookie expiration, etc.
+    }
 }));
 
 app.use(express.json());
@@ -68,8 +73,10 @@ app.get('/twitter-callback', (req, res) => {
                 // Store tokens in the session
                 req.session.accessToken = accessToken;
                 req.session.accessTokenSecret = accessTokenSecret;
+                req.session.save(); // Save the session to ensure the data is stored
                 console.log('Access token:', accessToken);
                 console.log('Access token secret:', accessTokenSecret);
+                console.log('Session Data:', req.session); // Log session data for debugging
                 // Redirect to the frontend with a session identifier
                 res.redirect(`https://lotso.org/auth-success.html?session_id=${req.sessionID}`);
                 // res.status(200).json({
@@ -107,6 +114,7 @@ app.get('/check-retweet', (req, res) => {
         res.status(401).json({ error: 'Authentication required' });
     }
 });
+app.options('/check-retweet', cors(corsOptions)); // Enable preflight request for this endpoint
 
 app.get('/check-follow', (req, res) => {
     if (req.session.accessToken && req.session.accessTokenSecret) {
@@ -119,6 +127,7 @@ app.get('/check-follow', (req, res) => {
         res.status(401).json({ error: 'Authentication required' });
     }
 });
+app.options('/check-follow', cors(corsOptions)); // Enable preflight request for this endpoint
 
 app.get('/check-like', (req, res) => {
     if (req.session.accessToken && req.session.accessTokenSecret) {
@@ -131,6 +140,7 @@ app.get('/check-like', (req, res) => {
         res.status(401).json({ error: 'Authentication required' });
     }
 });
+app.options('/check-like', cors(corsOptions)); // Enable preflight request for this endpoint
 
 app.get('/retweet', (req, res) => {
     if (req.session.accessToken && req.session.accessTokenSecret) {
