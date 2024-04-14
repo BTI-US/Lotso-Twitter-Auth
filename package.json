@@ -22,11 +22,13 @@
   },
   "homepage": "https://github.com/BTI-US/Lotso-Twitter-Auth#readme",
   "devDependencies": {
+    "connect-redis": "^7.1.1",
     "cors": "^2.8.5",
     "crypto": "^1.0.1",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
     "express-session": "^1.18.0",
-    "oauth": "^0.10.0"
+    "oauth": "^0.10.0",
+    "redis": "^4.6.13"
   }
 }

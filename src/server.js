@@ -3,8 +3,30 @@ const OAuth = require('oauth').OAuth;
 const cors = require('cors');
 const session = require('express-session');
 const crypto = require('crypto');
+const redis = require('redis');
+const RedisStore = require('connect-redis').default;
 const app = express();
 app.set('trust proxy', 1); // Trust the first proxy
+
+const redisClient = redis.createClient({
+    // Specify Redis server settings if not default
+    host: 'localhost',
+    port: 6000
+});
+redisClient.connect();
+const sessionStore = new RedisStore({ client: redisClient });
+
+redisClient.on('error', function (err) {
+    console.log('Could not establish a connection with Redis. ' + err);
+});
+
+redisClient.on('connect', function (err) {
+    console.log('Connected to Redis successfully');
+});
+
+redisClient.on('end', () => {
+    console.log('Redis client has disconnected from the server.');
+});
 
 if (!process.env.DOCKER_ENV) {
     require('dotenv').config();
@@ -12,17 +34,22 @@ if (!process.env.DOCKER_ENV) {
 
 // Only allow your specific frontend domain and enable credentials
 const corsOptions = {
-    origin: 'https://lotso.org', // Specify the exact URL of your frontend
+    origin: function (origin, callback) {
+        callback(null, true)
+    },
     credentials: true, // Enable credentials
+    allowedHeaders: '*', // Accept any headers
+    exposedHeaders: '*', // Expose any headers
 };
 
 app.use(cors(corsOptions));
 app.use(session({
+    store: sessionStore,
     secret: generateSecretKey(), // Generate a random secret key for the session
     resave: false,
     saveUninitialized: true,
     cookie: {
-        secure: true, // Ensure cookies are only sent over HTTPS
+        secure: 'auto', // Set secure cookies based on the connection protocol
         httpOnly: true, // Protect against client-side scripting accessing the cookie
         maxAge: 3600000 // Set cookie expiration, etc.
     }
@@ -73,30 +100,43 @@ app.get('/twitter-callback', (req, res) => {
                 // Store tokens in the session
                 req.session.accessToken = accessToken;
                 req.session.accessTokenSecret = accessTokenSecret;
-                req.session.save(); // Save the session to ensure the data is stored
-                console.log('Access token:', accessToken);
-                console.log('Access token secret:', accessTokenSecret);
-                console.log('Session Data:', req.session); // Log session data for debugging
+                console.log('Send Session ID:', req.sessionID);
+                console.log('Send Session Data:', req.session);  // TEST: Log session data for debugging
                 // Redirect to the frontend with a session identifier
-                res.redirect(`https://lotso.org/auth-success.html?session_id=${req.sessionID}`);
-                // res.status(200).json({
-                //     status: 'success',
-                //     accessToken: accessToken,
-                //     accessTokenSecret: accessTokenSecret
-                // });
+                res.redirect(`http://localhost:8080/auth-success.html?session_id=${req.sessionID}`);
             }
         }
     );
 });
 
 app.get('/check-auth-status', (req, res) => {
-    console.log("Session Data:", req.session);  // TEST: Log session data for debugging
-    // Check session or other secure authentication methods
-    if (req.session.accessToken && req.session.accessTokenSecret) {
-        res.json({ isAuthenticated: true });
-    } else {
-        res.json({ isAuthenticated: false });
+    const sessionId = req.query.session_id;  // Get the session ID from query parameters
+    console.log("Received Session ID:", sessionId);
+
+    if (!sessionId) {
+        return res.status(400).send("No session ID provided");
     }
+
+    // Retrieve the session from Redis
+    sessionStore.get(sessionId, (err, session) => {
+        if (err) {
+            console.error('Error retrieving session:', err);
+            return res.status(500).send("Failed to retrieve session");
+        }
+
+        if (session) {
+            console.log("Received Session Data:", session);  // Log session data for debugging
+
+            // Check if the session has the access token and token secret
+            if (session.accessToken && session.accessTokenSecret) {
+                res.json({ isAuthenticated: true });
+            } else {
+                res.json({ isAuthenticated: false });
+            }
+        } else {
+            res.status(404).send("Session not found");
+        }
+    });
 });
 app.options('/check-auth-status', cors(corsOptions)); // Enable preflight request for this endpoint
 

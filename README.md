@@ -1,5 +1,10 @@
 # Twitter OAuth Docker Project
 
+[![Docker CI](https://github.com/BTI-US/Lotso-Twitter-Auth/actions/workflows/docker-ci.yml/badge.svg)](https://github.com/BTI-US/Lotso-Twitter-Auth/actions/workflows/docker-ci.yml)
+
+- Last Modified: 2024-04-15
+- Author: Phill Weston
+
 ## Table of Contents
 
 - [Overview](#overview)
@@ -115,13 +120,6 @@ The application has the following endpoints:
 - `/check-retweet`: Checks if a tweet has been retweeted by the user.
 - `/check-like`: Checks if a tweet has been liked by the user.
 - `/check-follow`: Checks if a user is being followed by the authenticated user.
-- `/get-tokens`: Retrieves the access tokens for the authenticated user.
-
-## Testing
-Describe how to run tests for this application, if applicable.
-
-## Contributing
-Contributions to this project are welcome. Please ensure you follow the guidelines outlined in CONTRIBUTING.md.
 
 ## License
-Specify the license under which this project is made available.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
