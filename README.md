@@ -1,6 +1,8 @@
 # Twitter OAuth Docker Project
 
 [![Docker CI](https://github.com/BTI-US/Lotso-Twitter-Auth/actions/workflows/docker-ci.yml/badge.svg)](https://github.com/BTI-US/Lotso-Twitter-Auth/actions/workflows/docker-ci.yml)
+[![CodeQL](https://github.com/BTI-US/Lotso-Twitter-Auth/actions/workflows/codeql.yml/badge.svg)](https://github.com/BTI-US/Lotso-Twitter-Auth/actions/workflows/codeql.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 - Last Modified: 2024-04-15
 - Author: Phill Weston
