@@ -4,7 +4,8 @@
   "description": "Authentication for Lotso Twitter account and tweets verification",
   "main": "src/server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "lint": "eslint .",
+    "start": "npm run lint && node src/server.js"
   },
   "repository": {
     "type": "git",
@@ -21,14 +22,22 @@
     "url": "https://github.com/BTI-US/Lotso-Twitter-Auth/issues"
   },
   "homepage": "https://github.com/BTI-US/Lotso-Twitter-Auth#readme",
-  "devDependencies": {
-    "connect-redis": "^7.1.1",
-    "cors": "^2.8.5",
-    "crypto": "^1.0.1",
-    "dotenv": "^16.4.5",
+  "dependencies": {
     "express": "^4.19.2",
     "express-session": "^1.18.0",
+    "connect-redis": "^7.1.1",
+    "dotenv": "^16.4.5",
+    "cors": "^2.8.5",
     "oauth": "^0.10.0",
     "redis": "^4.6.13"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3.0.2",
+    "@eslint/js": "^9.0.0",
+    "crypto": "^1.0.1",
+    "eslint": "^8.57.0",
+    "eslint-config-airbnb-base": "^15.0.0",
+    "eslint-plugin-import": "^2.29.1",
+    "globals": "^15.0.0"
   }
 }

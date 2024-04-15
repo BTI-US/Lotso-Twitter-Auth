@@ -120,6 +120,7 @@ The application has the following endpoints:
 - `/check-retweet`: Checks if a tweet has been retweeted by the user.
 - `/check-like`: Checks if a tweet has been liked by the user.
 - `/check-follow`: Checks if a user is being followed by the authenticated user.
+- `/check-bookmark`: Checks if a tweet has been bookmarked by the user.
 
 ## License
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
