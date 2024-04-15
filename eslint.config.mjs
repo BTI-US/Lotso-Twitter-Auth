@@ -28,7 +28,6 @@ export default [
       "no-multi-spaces": "off",
       "no-unused-vars": "off",
       "global-require": "off",
-      "no-use-before-define": "off",
       "consistent-return": "off",
       "camelcase": "off",
       "semi": ["error", "always"]
