@@ -1,4 +1,40 @@
 const { OAuth } = require('oauth');
+const mongoUtil = require('./db');
+
+mongoUtil.connectToServer()
+    .then(() => {
+        console.log("Successfully connected to MongoDB.");
+    })
+    .catch(err => {
+        console.error("Failed to connect to MongoDB:", err);
+    });
+
+/**
+ * Logs interactions with the Twitter API to MongoDB.
+ * @param {string} type - The type of interaction (e.g., 'follow', 'like').
+ * @param {string} url - The API endpoint URL.
+ * @param {Object} requestBody - The body of the request.
+ * @param {Object|null} response - The API response, if successful.
+ * @param {Error|null} error - The error, if the request failed.
+ */
+async function logTwitterInteraction(type, url, requestBody, response = null, error = null) {
+    const db = mongoUtil.getDb();
+    const logEntry = {
+        type,
+        url,
+        requestBody,
+        createdAt: new Date(),
+    };
+
+    // Add response or error information to the log entry depending on the outcome
+    if (response) {
+        logEntry.response = response;
+    } else if (error) {
+        logEntry.error = error.toString();
+    }
+
+    await db.collection('twitterInteractions').insertOne(logEntry);
+}
 
 /**
  * @brief Retrieves the Twitter user ID using the provided access token and access token secret.
@@ -56,7 +92,6 @@ function getUserTwitterId(accessToken, accessTokenSecret) {
  * @note This function requires the 'OAuth' library to be installed.
  */
 function makeAuthenticatedRequest(accessToken, accessTokenSecret, method, url, body = null) {
-    console.log("TEST");
     return new Promise((resolve, reject) => {
         const oauth = new OAuth(
             'https://api.twitter.com/oauth/request_token',
@@ -112,17 +147,23 @@ function retweetTweet(accessToken, accessTokenSecret, userId, tweetId) {
     const body = JSON.stringify({ tweet_id: tweetId });
 
     return makeAuthenticatedRequest(accessToken, accessTokenSecret, 'POST', url, body)
-        .then(response => {
+        .then(async response => {
             // Assuming makeAuthenticatedRequest resolves with the parsed JSON data
             if (response.errors) {
                 // If Twitter API returns errors, handle them here
                 const errorDetails = response.errors[0];
                 console.error(`Failed to retweet tweet, Error: ${errorDetails.detail}`);
                 throw new Error(`Failed to retweet tweet, Error: ${errorDetails.detail}`);
+            } else {
+                // Log the successful API request
+                await logTwitterInteraction('retweet', url, body, response);
             }
             return response;  // If no errors, return the successful response
         })
-        .catch(error => {
+        .catch(async error => {
+            // Log the failed API request
+            await logTwitterInteraction('retweet', url, body, null, error);
+
             console.error('Failed to retweet tweet:', error);
             throw error;  // Rethrow error to be handled by the caller
         });
@@ -146,17 +187,23 @@ function likeTweet(accessToken, accessTokenSecret, userId, tweetId) {
     const url = `https://api.twitter.com/2/users/${userId}/likes`;
     const body = JSON.stringify({ tweet_id: tweetId });
     return makeAuthenticatedRequest(accessToken, accessTokenSecret, 'POST', url, body)
-        .then(response => {
+        .then(async response => {
             // Assuming makeAuthenticatedRequest resolves with the parsed JSON data
             if (response.errors) {
                 // If Twitter API returns errors, handle them here
                 const errorDetails = response.errors[0];
                 console.error(`Failed to like tweet, Error: ${errorDetails.detail}`);
                 throw new Error(`Failed to like tweet, Error: ${errorDetails.detail}`);
+            } else {
+                // Log the successful API request
+                await logTwitterInteraction('like', url, body, response);
             }
             return response;  // If no errors, return the successful response
         })
-        .catch(error => {
+        .catch(async error => {
+            // Log the failed API request
+            await logTwitterInteraction('like', url, body, null, error);
+
             console.error('Failed to like tweet:', error);
             throw error;  // Rethrow error to be handled by the caller
         });
@@ -180,17 +227,23 @@ function bookmarkTweet(accessToken, accessTokenSecret, userId, tweetId) {
     const url = `https://api.twitter.com/2/users/${userId}/bookmarks`;
     const body = JSON.stringify({ tweet_id: tweetId });
     return makeAuthenticatedRequest(accessToken, accessTokenSecret, 'POST', url, body)
-        .then(response => {
+        .then(async response => {
             // Assuming makeAuthenticatedRequest resolves with the parsed JSON data
             if (response.errors) {
                 // If Twitter API returns errors, handle them here
                 const errorDetails = response.errors[0];
                 console.error(`Failed to bookmark tweet, Error: ${errorDetails.detail}`);
                 throw new Error(`Failed to bookmark tweet, Error: ${errorDetails.detail}`);
+            } else {
+                // Log the successful API request
+                await logTwitterInteraction('bookmark', url, body, response);
             }
             return response;  // If no errors, return the successful response
         })
-        .catch(error => {
+        .catch(async error => {
+            // Log the failed API request
+            await logTwitterInteraction('bookmark', url, body, null, error);
+
             console.error('Failed to bookmark tweet:', error);
             throw error;  // Rethrow error to be handled by the caller
         });
@@ -213,11 +266,23 @@ function fetchUserId(username, accessToken, accessTokenSecret) {
     console.log("Fetching user ID for: ", username);
     const url = `https://api.twitter.com/2/users/by/username/${username}`;
     return makeAuthenticatedRequest(accessToken, accessTokenSecret, 'GET', url)
-        .then(response => {
+        .then(async response => {
+            if (response.errors) {
+                // If Twitter API returns errors, handle them here
+                const errorDetails = response.errors[0];
+                console.error(`Failed to fetch user ID, Error: ${errorDetails.detail}`);
+                throw new Error(`Failed to fetch user ID, Error: ${errorDetails.detail}`);
+            } else {
+                // Log the successful API request
+                await logTwitterInteraction('fetchUserId', url, null, response);
+            }
             console.log("Fetched user ID: ", response.data.id);
             return response.data.id;
         })
-        .catch(error => {
+        .catch(async error => {
+            // Log the failed API request
+            await logTwitterInteraction('bookmark', url, null, null, error);
+
             console.error('Failed to fetch user ID: ', error);
             throw new Error('Failed to fetch user ID');
         });
@@ -242,17 +307,23 @@ function followUser(accessToken, accessTokenSecret, userId, targetUserId) {
     const url = `https://api.twitter.com/2/users/${userId}/following`;
     const body = JSON.stringify({ target_user_id: targetUserId });
     return makeAuthenticatedRequest(accessToken, accessTokenSecret, 'POST', url, body)
-        .then(response => {
+        .then(async response => {
             // Directly use response as it is already a JSON object from makeAuthenticatedRequest
             if (response.errors) {
                 // Check if there are any errors in the response JSON
                 const errorDetails = response.errors[0];
                 console.error(`Failed to follow user, Error: ${errorDetails.detail}`);
                 throw new Error(`Failed to follow user, Error: ${errorDetails.detail}`);
+            } else {
+                // Log the successful API request
+                await logTwitterInteraction('follow', url, body, response);
             }
             return response; // Return the success response JSON
         })
-        .catch(error => {
+        .catch(async error => {
+            // Log the failed API request
+            await logTwitterInteraction('follow', url, body, null, error);
+
             console.error('Failed to follow user:', error);
             throw error;  // Rethrow error to be handled by the caller
         });
@@ -278,7 +349,10 @@ function checkIfRetweeted(accessToken, accessTokenSecret, userId, targetTweetId)
     const url = `https://api.twitter.com/2/users/${userId}/tweets?max_results=10`;
 
     return makeAuthenticatedRequest(accessToken, accessTokenSecret, 'GET', url)
-        .then(response => {
+        .then(async response => {
+            // Log the successful API request
+            await logTwitterInteraction('checkRetweet', url, null, response);
+
             if (response.data && response.data.length > 0) {
                 // Check through the list of followed users to see if targetTweetId is one of them
                 const isLiked = response.data.some(tweet => tweet.id === targetTweetId);
@@ -288,7 +362,10 @@ function checkIfRetweeted(accessToken, accessTokenSecret, userId, targetTweetId)
                 return { isLiked: false };
             }
         })
-        .catch(error => {
+        .catch(async error => {
+            // Log the failed API request
+            await logTwitterInteraction('checkRetweet', url, null, null, error);
+
             console.error('Error checking if retweeted:', error);
             throw error;  // Rethrow error to be handled by the caller
         });
@@ -313,7 +390,10 @@ function checkIfFollowed(accessToken, accessTokenSecret, userId, targetUserId) {
     const url = `https://api.twitter.com/2/users/${userId}/following`;
 
     return makeAuthenticatedRequest(accessToken, accessTokenSecret, 'GET', url)
-        .then(response => {
+        .then(async response => {
+            // Log the successful API request
+            await logTwitterInteraction('checkFollow', url, null, response);
+
             if (response.data && response.data.length > 0) {
                 // Check through the list of followed users to see if targetUserId is one of them
                 const isFollowing = response.data.some(user => user.id === targetUserId);
@@ -323,7 +403,10 @@ function checkIfFollowed(accessToken, accessTokenSecret, userId, targetUserId) {
                 return { isFollowing: false };
             }
         })
-        .catch(error => {
+        .catch(async error => {
+            // Log the failed API request
+            await logTwitterInteraction('checkFollow', url, null, null, error);
+
             console.error('Error checking if followed:', error);
             throw error;  // Rethrow error to be handled by the caller
         });
@@ -346,7 +429,10 @@ function checkIfLiked(accessToken, accessTokenSecret, userId, targetTweetId) {
     const url = `https://api.twitter.com/2/users/${userId}/liked_tweets`;
 
     return makeAuthenticatedRequest(accessToken, accessTokenSecret, 'GET', url)
-        .then(response => {
+        .then(async response => {
+            // Log the successful API request
+            await logTwitterInteraction('checkLike', url, null, response);
+
             if (response.data && response.data.length > 0) {
                 // Check through the list of followed users to see if targetTweetId is one of them
                 const isLiked = response.data.some(tweet => tweet.id === targetTweetId);
@@ -356,7 +442,10 @@ function checkIfLiked(accessToken, accessTokenSecret, userId, targetTweetId) {
                 return { isLiked: false };
             }
         })
-        .catch(error => {
+        .catch(async error => {
+            // Log the failed API request
+            await logTwitterInteraction('checkLike', url, null, null, error);
+
             console.error('Error checking if liked:', error);
             throw error;
         });
@@ -381,7 +470,10 @@ function checkIfBookmarked(accessToken, accessTokenSecret, userId, targetTweetId
     const url = `https://api.twitter.com/2/users/${userId}/bookmarks`;
 
     return makeAuthenticatedRequest(accessToken, accessTokenSecret, 'GET', url)
-        .then(response => {
+        .then(async response => {
+            // Log the successful API request
+            await logTwitterInteraction('checkBookmark', url, null, response);
+
             if (response.data && response.data.length > 0) {
                 // Check through the list of followed users to see if targetTweetId is one of them
                 const isBookmarked = response.data.some(tweet => tweet.id === targetTweetId);
@@ -391,7 +483,10 @@ function checkIfBookmarked(accessToken, accessTokenSecret, userId, targetTweetId
                 return { isBookmarked: false };
             }
         })
-        .catch(error => {
+        .catch(async error => {
+            // Log the failed API request
+            await logTwitterInteraction('checkBookmark', url, null, null, error);
+
             console.error('Error checking if bookmarked:', error);
             throw error;
         });

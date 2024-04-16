@@ -18,12 +18,14 @@
 - [Installation and Setup](#installation-and-setup)
    - [Setting Up Twitter API Keys](#setting-up-twitter-api-keys)
    - [Building the Docker Image](#building-the-docker-image)
+   - [Building the MongoDB Docker Image](#building-the-mongodb-docker-image)
 - [Running the Application](#running-the-application)
 - [How to Acquire Twitter API Keys](#how-to-acquire-twitter-api-keys)
    - [User Authentication Settings](#user-authentication-settings)
 - [Usage](#usage)
 - [Testing](#testing)
 - [Contributing](#contributing)
+- [Milestones](#milestones)
 - [License](#license)
 
 ## Overview
@@ -87,10 +89,26 @@ This project implements a serverless function hosted within a Docker container t
    docker build -t twitter-auth .
    ```
 
+### Building the MongoDB Docker Image
+
+1. Pull the MongoDB image:
+   ```bash
+   docker pull mongo
+   ```
+2. Run the docker image with the necessary environment variables:
+   ```bash
+   docker run --name mongodb -d -p 27017:27017 -v /root/mongodb:/data/db -e MONGO_INITDB_ROOT_USERNAME=admin -e MONGO_INITDB_ROOT_PASSWORD=password mongo
+   ```
+
 ## Running the Application
 Run the Docker container with the necessary environment variables:
 ```bash
-docker run -e DOCKER_ENV=true TWITTER_CONSUMER_KEY='your_key' -e TWITTER_CONSUMER_SECRET='your_secret' -p 5000:5000 twitter-auth
+docker run -e DOCKER_ENV=true MONGODB_URI='your_mongo_uri' TWITTER_CONSUMER_KEY='your_key' -e TWITTER_CONSUMER_SECRET='your_secret' -p 5000:5000 twitter-auth
+```
+
+Example for the MongoDB URI:
+```
+MONGODB_URI=mongodb://admin:password@localhost:27017/twitterLogs?authSource=admin
 ```
 
 ## How to Acquire Twitter API Keys
@@ -123,6 +141,11 @@ The application has the following endpoints:
 - `/check-like`: Checks if a tweet has been liked by the user.
 - `/check-follow`: Checks if a user is being followed by the authenticated user.
 - `/check-bookmark`: Checks if a tweet has been bookmarked by the user.
+
+## Milestones
+- [x] Implement OAuth with Twitter.
+- [x] Basic functionality to interact with Twitter API.
+- [x] Use MongoDB to log each user's actions.
 
 ## License
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
