@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  twitter-auth:
+    container_name: twitter-auth
+    image: twitter-auth:latest
+    build: .
+    environment:
+      DOCKER_ENV: ${DOCKER_ENV:-true}
+      MONGODB_DB: ${MONGODB_DB:-twitterLogs}
+      MONGODB_PORT: ${MONGODB_PORT:-27017}
+      MONGODB_USERNAME: ${MONGODB_USERNAME:-admin}
+      MONGODB_PASSWORD: ${MONGODB_PASSWORD}
+      TWITTER_CONSUMER_KEY: ${TWITTER_CONSUMER_KEY}
+      TWITTER_CONSUMER_SECRET: ${TWITTER_CONSUMER_SECRET}
+    ports:
+      - "5000:5000"
+    depends_on:
+      - mongodb
+    restart: always
+
+  mongodb:
+    container_name: mongodb
+    image: mongo
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGODB_USERNAME:-admin}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGODB_PASSWORD}
+    ports:
+      - "${MONGODB_PORT:-27017}:27017"
+    volumes:
+      - "/root/mongodb:/data/db"
+    restart: always

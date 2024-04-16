@@ -4,8 +4,11 @@ if (!process.env.DOCKER_ENV) {
     require('dotenv').config();
 }
 
-const client = new MongoClient(process.env.MONGODB_URI);
+// Construct the MongoDB URI using environment variables
+const uri = `mongodb://${process.env.MONGODB_USERNAME}:${process.env.MONGODB_PASSWORD}` +
+            `@localhost:${process.env.MONGODB_PORT}/${process.env.MONGODB_DB}?authSource=admin`;
 
+const client = new MongoClient(uri);
 let dbConnection;
 
 module.exports = {
@@ -14,7 +17,7 @@ module.exports = {
             client.connect()
                 .then(() => {
                     console.log("Connected successfully to MongoDB server");
-                    dbConnection = client.db('twitterLogs'); // This is how you select the database
+                    dbConnection = client.db(process.env.MONGODB_DB); // This is how you select the database
                     resolve(dbConnection);
                 })
                 .catch((err) => {

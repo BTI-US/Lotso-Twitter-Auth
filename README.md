@@ -103,12 +103,7 @@ This project implements a serverless function hosted within a Docker container t
 ## Running the Application
 Run the Docker container with the necessary environment variables:
 ```bash
-docker run -e DOCKER_ENV=true MONGODB_URI='your_mongo_uri' TWITTER_CONSUMER_KEY='your_key' -e TWITTER_CONSUMER_SECRET='your_secret' -p 5000:5000 twitter-auth
-```
-
-Example for the MongoDB URI:
-```
-MONGODB_URI=mongodb://admin:password@localhost:27017/twitterLogs?authSource=admin
+docker run -e DOCKER_ENV=true MONGODB_URI='your_mongo_uri' MONGODB_USERNAME='your_mongo_database_username' MONGODB_PASSWORD='your_mongo_database_username' MONGODB_PORT='your_mongo_database_port' MONGODB_DB='your_mongo_database_name' TWITTER_CONSUMER_KEY='your_key' -e TWITTER_CONSUMER_SECRET='your_secret' -p 5000:5000 twitter-auth
 ```
 
 ## How to Acquire Twitter API Keys
