@@ -388,7 +388,8 @@ app.get('/follow-us', (req, res) => {
                         utils.followUser(req.session.accessToken, req.session.accessTokenSecret, userId, targetUserId)
                             .then(response => res.json(response))
                             .catch(error => res.status(500).json({ error: error.message }));
-                });
+                    })
+                    .catch(error => res.status(500).json({ error: error.message }));
             })
             .catch(error => res.status(500).json({ error: error.message }));
     } else {

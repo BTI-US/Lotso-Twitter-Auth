@@ -103,7 +103,7 @@ This project implements a serverless function hosted within a Docker container t
 ## Running the Application
 Run the Docker container with the necessary environment variables:
 ```bash
-docker run -e DOCKER_ENV=true MONGODB_URI='your_mongo_uri' MONGODB_USERNAME='your_mongo_database_username' MONGODB_PASSWORD='your_mongo_database_username' MONGODB_PORT='your_mongo_database_port' MONGODB_DB='your_mongo_database_name' TWITTER_CONSUMER_KEY='your_key' -e TWITTER_CONSUMER_SECRET='your_secret' -p 5000:5000 twitter-auth
+docker run -e DOCKER_ENV=true MONGODB_URI='your_mongo_uri' MONGODB_USERNAME='your_mongo_database_username' MONGODB_PASSWORD='your_mongo_database_username' MONGODB_PORT='your_mongo_database_port' MONGODB_DB='your_mongo_database_name' MONGODB_USERDB='your_mongo_database_name_for_user_data' TWITTER_CONSUMER_KEY='your_key' -e TWITTER_CONSUMER_SECRET='your_secret' -p 5000:5000 twitter-auth
 ```
 
 ## How to Acquire Twitter API Keys
@@ -114,6 +114,10 @@ docker run -e DOCKER_ENV=true MONGODB_URI='your_mongo_uri' MONGODB_USERNAME='you
 4. Fill in the required details and create the app.
 5. Go to the 'Keys and Tokens' tab.
 6. Copy the 'API Key' and 'API Secret Key' and use them as your `TWITTER_CONSUMER_KEY` and `TWITTER_CONSUMER_SECRET`.
+
+## Twitter API Rate Limitations
+
+Refer to the [Twitter API Rate Limiting](https://developer.twitter.com/en/docs/twitter-api/rate-limits) documentation for details on the rate limits for different endpoints.
 
 ### User Authentication Settings
 
@@ -136,6 +140,7 @@ The application has the following endpoints:
 - `/check-like`: Checks if a tweet has been liked by the user.
 - `/check-follow`: Checks if a user is being followed by the authenticated user.
 - `/check-bookmark`: Checks if a tweet has been bookmarked by the user.
+
 
 ## Milestones
 - [x] Implement OAuth with Twitter.
