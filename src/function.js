@@ -51,6 +51,19 @@ async function logTwitterInteraction(type, url, requestBody, response = null, er
     await dbConnection.collection('twitterInteractions').insertOne(logEntry);
 }
 
+/**
+ * @brief Logs a user interaction with the Twitter API to the user database.
+ * 
+ * @param {string} userId - The ID of the user performing the interaction.
+ * @param {string} type - The type of interaction (e.g., 'follow', 'like').
+ * @param {string} url - The API endpoint URL.
+ * @param {Object} requestBody - The body of the request.
+ * @param {Object|null} [response=null] - The API response, if successful.
+ * @param {Error|null} [error=null] - The error, if the request failed.
+ * 
+ * @note This function logs a user interaction with the Twitter API to the user database.
+ * If the user database is not connected, an error will be thrown.
+ */
 async function logUserInteraction(userId, type, url, requestBody, response = null, error = null) {
     if (!userDbConnection) {
         throw new Error("User database not connected");
@@ -82,7 +95,19 @@ async function logUserInteraction(userId, type, url, requestBody, response = nul
     await userDbConnection.collection('twitterInteractions').updateOne(filter, update, { upsert: true });
 }
 
-async function queryUserInteraction(userId, type) {
+/**
+ * @brief Queries the user interaction log for the latest log entry of a specific user and interaction type.
+ * 
+ * @param {string} userId - The ID of the user.
+ * @param {string} type - The type of interaction (e.g., 'follow', 'like').
+ * 
+ * @return {Promise<Object|null>} A promise that resolves with the latest log entry, or null if no entry is found.
+ * 
+ * @note This function queries the user interaction log in the user database to fetch the latest log entry
+ * for a specific user and interaction type. If the user database is not connected, an error will be thrown.
+ * The log entry is returned as an object, or null if no entry is found.
+ */
+async function checkInteraction(userId, type) {
     if (!userDbConnection) {
         throw new Error("User database not connected");
     }
@@ -99,29 +124,107 @@ async function queryUserInteraction(userId, type) {
         const logEntry = await userDbConnection.collection('twitterInteractions').findOne(query, options);
 
         if (logEntry) {
-            return logEntry;
+            // Check if the interaction was successful based on the existence of a response and absence of an error
+            return !!logEntry.response && !logEntry.error;
         } else {
-            return null;  // Return null if no entry is found
+            console.log("No interaction found for this user and type.");
+            return false;  // Return false if no entry is found
         }
     } catch (error) {
-        console.error("Failed to query user interaction:", error);
+        console.error("Error checking interaction:", error);
+        return false;  // Return false in case of an error during the query
+    }
+}
+
+/**
+ * @brief Checks if a user has already claimed the airdrop.
+ * 
+ * @param {string} userId - The ID of the user.
+ * @param {string} userAddress - The address of the user.
+ * 
+ * @return {Promise<Object>} A promise that resolves with an object indicating whether the user has claimed the airdrop.
+ * The resolved object has a property 'hasClaimed' which is a boolean value indicating whether the user has claimed the airdrop.
+ * 
+ * @note This function checks if a user has already claimed the airdrop by querying the 'airdropClaim' collection in the user database.
+ * If the user database is not connected, an error will be thrown.
+ * The function executes a query to find a matching entry in the 'airdropClaim' collection based on the provided 'userId' and 'userAddress'.
+ * If a matching entry is found, the function returns an object with 'hasClaimed' set to true.
+ * If no matching entry is found, the function returns an object with 'hasClaimed' set to false.
+ * If there is an error during the process, the error will be logged and rethrown to be handled in the calling function.
+ */
+async function checkIfClaimedAirdrop(userId, userAddress) {
+    if (!userDbConnection) {
+        throw new Error("User database not connected");
+    }
+
+    try {
+        // Define the query to find a matching entry in the airdropClaim collection
+        const query = { userId, userAddress };
+        const options = {
+            sort: { createdAt: -1 },  // Sort by creation date in descending order to get the most recent log
+            limit: 1,  // Limit the result to only one document
+        };
+
+        // Execute the query to fetch a matching entry
+        const airdropEntry = await userDbConnection.collection('airdropClaim').findOne(query, options);
+
+        if (airdropEntry) {
+            console.log("User has already claimed the airdrop.");
+            return { hasClaimed: true };
+        } else {
+            console.log("User has not claimed the airdrop yet.");
+            return { hasClaimed: false };
+        }
+    } catch (error) {
+        console.error("Error checking if claimed airdrop:", error);
         throw error;  // Rethrow the error to handle it in the calling function
     }
 }
 
-async function checkInteraction(userId, type) {
-    try {
-        const interactionDetails = await queryUserInteraction(userId, type);
-        if (interactionDetails) {
-            // Check if the interaction was successful based on the existence of a response and absence of an error
-            return !!interactionDetails.response && !interactionDetails.error;
-        } else {
-            console.log("No interaction found for this user and type.");
-            return false;
-        }
-    } catch (error) {
-        console.error("Error checking interaction:", error);
-        return false; // Return false in case of an error during the query
+/**
+ * @brief Logs a user's airdrop claim to the user database.
+ * 
+ * @param {string} userId - The ID of the user claiming the airdrop.
+ * @param {string} userAddress - The address of the user claiming the airdrop.
+ * 
+ * @return {Promise<Object>} A promise that resolves with an object indicating whether the airdrop claim was successfully logged.
+ * The resolved object has a property 'isLogged' which is a boolean value indicating whether the claim was logged.
+ * 
+ * @note This function logs a user's airdrop claim to the user database. If the user database is not connected, an error will be thrown.
+ * The function checks if any address has been logged for the provided userId. If no address has been logged, the userAddress is added to the log entry.
+ * The log entry is then inserted into the 'airdropClaim' collection in the user database.
+ * If an address has already been logged for the userId, the userAddress is not added to the log entry.
+ * The function returns an object indicating whether the claim was successfully logged, with 'isLogged' set to true if the claim was logged,
+ * or false if the claim was not logged due to a previous log entry for the userId.
+ */
+async function logUserAirdrop(userId, userAddress) {
+    if (!userDbConnection) {
+        throw new Error("User database not connected");
+    }
+
+    // Check if any address has been logged for this userId
+    const existingEntry = await userDbConnection.collection('airdropClaim').findOne({ userId });
+
+    // Prepare the log entry data
+    const logEntry = {
+        userId,
+        loggedAt: new Date(),
+    };
+
+    // Only add the userAddress to the log entry if no address has been logged for this userId before
+    if (!existingEntry) {
+        logEntry.userAddress = userAddress; // Log the address only if this user hasn't logged any address before
+        // Log the interaction to the database
+        await userDbConnection.collection('airdropClaim').insertOne(logEntry);
+        console.log(`Airdrop logged for userId: ${userId} with address: ${userAddress}`);
+
+        return { isLogged: true };
+    } else {
+        // Log the interaction to the database
+        await userDbConnection.collection('airdropClaim').insertOne(logEntry);
+        console.log(`Airdrop re-logged for userId: ${userId}, address not repeated due to previous log.`);
+
+        return { isLogged: false };
     }
 }
 
@@ -656,4 +759,6 @@ module.exports = {
     checkIfFollowed,
     checkIfLiked,
     checkIfBookmarked,
+    checkIfClaimedAirdrop,
+    logUserAirdrop,
 };

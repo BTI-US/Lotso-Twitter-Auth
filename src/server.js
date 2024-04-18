@@ -398,6 +398,66 @@ app.get('/follow-us', (req, res) => {
 });
 app.options('/follow-us', cors(corsOptions)); // Enable preflight request for this endpoint
 
+app.get('/check-airdrop', (req, res) => {
+    if (!req.session) {
+        return res.status(400).send("No session found");
+    }
+    console.log("Endpoint hit: /check-airdrop");
+
+    if (req.session.accessToken && req.session.accessTokenSecret) {
+        const { address } = req.query;
+        if (!address) {
+            console.log("Address not found");
+            return res.status(400).json({ error: 'Address are required' });
+        }
+
+        // Fetch the user ID from the username first
+        utils.getUserTwitterId(req.session.accessToken, req.session.accessTokenSecret)
+            .then(userId => {
+                utils.checkIfClaimedAirdrop(userId, address)
+                    .then(result => res.json(result))
+                    .catch(error => res.status(500).json({
+                        error: "Failed to check airdrop status",
+                        details: error,
+                    }));
+                })
+                .catch(error => res.status(500).json({ error: error.message }));
+    } else {
+        res.status(401).json({ error: 'Authentication required' });
+    }
+});
+app.options('/check-airdrop', cors(corsOptions)); // Enable preflight request for this endpoint
+
+app.get('/log-airdrop', (req, res) => {
+    if (!req.session) {
+        return res.status(400).send("No session found");
+    }
+    console.log("Endpoint hit: /log-airdrop");
+
+    if (req.session.accessToken && req.session.accessTokenSecret) {
+        const { address } = req.query;
+        if (!address) {
+            console.log("Address not found");
+            return res.status(400).json({ error: 'Address are required' });
+        }
+
+        // Fetch the user ID from the username first
+        utils.getUserTwitterId(req.session.accessToken, req.session.accessTokenSecret)
+            .then(userId => {
+                utils.logUserAirdrop(userId, address)
+                    .then(result => res.json(result))
+                    .catch(error => res.status(500).json({
+                        error: "Failed to log airdrop status",
+                        details: error,
+                    }));
+                })
+                .catch(error => res.status(500).json({ error: error.message }));
+    } else {
+        res.status(401).json({ error: 'Authentication required' });
+    }
+});
+app.options('/log-airdrop', cors(corsOptions)); // Enable preflight request for this endpoint
+
 const PORT = process.env.PORT || 5000;
 https.createServer({
     key: fs.readFileSync('/etc/letsencrypt/live/btiplatform.com/privkey.pem'),
