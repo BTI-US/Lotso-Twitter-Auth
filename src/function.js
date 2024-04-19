@@ -7,10 +7,15 @@ let userDbConnection = null;
 mongoUtil.connectToServer()
     .then(({ dbConnection: localDbConnection, userDbConnection: localUserDbConnection }) => {
         console.log("Successfully connected to MongoDB.");
-        // Create index after ensuring the database connection is established
+        // Create index on 'twitterInteractions' after ensuring the database connection is established
         localUserDbConnection.collection('twitterInteractions').createIndex({ userId: 1, type: 1 }, { unique: true })
             .then(() => {
                 console.log("Index created successfully on 'twitterInteractions'");
+                // Proceed to create index on 'airdropClaim'
+                return localUserDbConnection.collection('airdropClaim').createIndex({ userId: 1, userAddress: 1, createdAt: -1 }, { unique: false });
+            })
+            .then(() => {
+                console.log("Index created successfully on 'airdropClaim'");
                 // Assign the database connections to the variables declared at higher scope
                 dbConnection = localDbConnection;
                 userDbConnection = localUserDbConnection;
@@ -560,7 +565,7 @@ function followUser(accessToken, accessTokenSecret, userId, targetUserId) {
  * 
  * @param {string} accessToken - The access token for authenticating the request.
  * @param {string} accessTokenSecret - The access token secret for authenticating the request.
- * @param {string} userId - The ID of the tweet to check for retweets.
+ * @param {string} userId - The ID of the user to check for retweets.
  * @param {string} targetTweetId - The ID of the tweet to check if retweeted.
  * 
  * @return {Promise<{retweeted: boolean}>} - A promise that resolves to an object containing the retweeted status.
@@ -580,7 +585,7 @@ function checkIfRetweeted(accessToken, accessTokenSecret, userId, targetTweetId)
                 return { isRetweeted: true };
             } else {
                 // If not already retweeted according to logs, check Twitter API to ensure and log new interactions
-                const url = `https://api.twitter.com/2/users/${userId}/tweets?max_results=10`;
+                const url = `https://api.twitter.com/2/tweets/${targetTweetId}/retweeted_by`;
                 return makeAuthenticatedRequest(accessToken, accessTokenSecret, 'GET', url)
                     .then(async response => {
                         // Log the successful API request
@@ -588,8 +593,9 @@ function checkIfRetweeted(accessToken, accessTokenSecret, userId, targetTweetId)
 
                         if (response.data && response.data.length > 0) {
                             // Check through the list of tweets to see if targetTweetId is one of them
-                            const isRetweeted = response.data.some(tweet => tweet.id === targetTweetId);
+                            const isRetweeted = response.data.some(tweet => tweet.id === userId);
                             await logUserInteraction(userId, 'checkRetweet', url, null, response);
+                            await logTwitterInteraction('checkRetweet', url, null, response);
                             return { isRetweeted };
                         } else {
                             // If the data array is empty, then no tweets were found
@@ -600,6 +606,7 @@ function checkIfRetweeted(accessToken, accessTokenSecret, userId, targetTweetId)
         })
         .catch(async error => {
             // Log the failed API request or interaction check
+            await logTwitterInteraction('checkRetweet', url, null, null, error);
             console.error('Error checking if retweeted:', error);
             throw error;  // Rethrow error to be handled by the caller
         });
@@ -638,6 +645,7 @@ function checkIfFollowed(accessToken, accessTokenSecret, userId, targetUserId) {
                             // Check through the list of followed users to see if targetUserId is one of them
                             const isFollowing = response.data.some(user => user.id === targetUserId);
                             await logUserInteraction(userId, 'checkFollow', url, null, response);
+                            await logTwitterInteraction('checkFollow', url, null, response);
                             return { isFollowing };
                         } else {
                             // If the data array is empty, then the user is not following anyone or the specified userId is invalid
@@ -648,6 +656,7 @@ function checkIfFollowed(accessToken, accessTokenSecret, userId, targetUserId) {
         })
         .catch(async error => {
             // Log the failed API request or interaction check
+            await logTwitterInteraction('checkFollow', url, null, null, error);
             console.error('Error checking if followed:', error);
             throw error;  // Rethrow error to be handled by the caller
         });
@@ -684,6 +693,7 @@ function checkIfLiked(accessToken, accessTokenSecret, userId, targetTweetId) {
                             // Check through the list of liked tweets to see if targetTweetId is one of them
                             const isLiked = response.data.some(tweet => tweet.id === targetTweetId);
                             await logUserInteraction(userId, 'checkLike', url, null, response);
+                            await logTwitterInteraction('checkLike', url, null, response);
                             return { isLiked };
                         } else {
                             // If the data array is empty, then no tweets were found
@@ -694,6 +704,7 @@ function checkIfLiked(accessToken, accessTokenSecret, userId, targetTweetId) {
         })
         .catch(async error => {
             // Log the failed API request or interaction check
+            await logTwitterInteraction('checkLike', url, null, null, error);
             console.error('Error checking if liked:', error);
             throw error;  // Rethrow error to be handled by the caller
         });
@@ -732,6 +743,7 @@ function checkIfBookmarked(accessToken, accessTokenSecret, userId, targetTweetId
                             // Check through the list of bookmarks to see if targetTweetId is one of them
                             const isBookmarked = response.data.some(tweet => tweet.id === targetTweetId);
                             await logUserInteraction(userId, 'checkBookmark', url, null, response);
+                            await logTwitterInteraction('checkBookmark', url, null, response);
                             return { isBookmarked };
                         } else {
                             // If the data array is empty, then no bookmarks were found
@@ -742,6 +754,7 @@ function checkIfBookmarked(accessToken, accessTokenSecret, userId, targetTweetId
         })
         .catch(async error => {
             // Log the failed API request or interaction check
+            await logTwitterInteraction('checkBookmark', url, null, null, error);
             console.error('Error checking if bookmarked:', error);
             throw error;  // Rethrow error to be handled by the caller
         });
