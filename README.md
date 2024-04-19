@@ -115,7 +115,6 @@ This project implements a serverless function hosted within a Docker container t
 
 Run the Docker container using the following command:
 ```bash
-DOCKER_ENV=true \
 SERVER_PORT=5000 \
 MONGODB_DB=twitterLogs \
 MONGODB_USERDB=twitterUsers \
