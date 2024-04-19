@@ -573,7 +573,7 @@ function followUser(accessToken, accessTokenSecret, userId, targetUserId) {
  * @note This function makes an authenticated request to the Twitter API to fetch the user's timeline tweets
  * and checks if any tweet is a retweet of the specified tweetId.
  * If an error occurs during the process, it will be logged and rethrown to be handled by the caller.
- * Reference: https://developer.twitter.com/en/docs/twitter-api/tweets/timelines/api-reference/get-users-id-tweets
+ * Reference: https://developer.twitter.com/en/docs/twitter-api/tweets/retweets/api-reference/get-tweets-id-retweeted_by
  * Limitation: 15 requests / 15 mins per user or 15 requests / 15 mins per app, no tweet cap
  */
 function checkIfRetweeted(accessToken, accessTokenSecret, userId, targetTweetId) {

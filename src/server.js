@@ -13,9 +13,10 @@ const app = express();
 app.set('trust proxy', 1); // Trust the first proxy
 
 const redisClient = redis.createClient({
-    // Specify Redis server settings if not default
-    host: 'localhost',
-    port: 6000,
+    socket: {
+        host: process.env.REDIS_HOST,
+        port: process.env.REDIS_PORT,
+    },
 });
 redisClient.connect();
 const sessionStore = new RedisStore({ client: redisClient });
@@ -462,11 +463,19 @@ app.get('/log-airdrop', (req, res) => {
 });
 app.options('/log-airdrop', cors(corsOptions)); // Enable preflight request for this endpoint
 
-const PORT = process.env.PORT || 5000;
+const SERVER_PORT = process.env.SERVER_PORT || 5000;
+const keyPath = process.env.PRIVKEY_PATH;
+const certPath = process.env.CERT_PATH;
+
+if (!fs.existsSync(keyPath) || !fs.existsSync(certPath)) {
+    console.error('Required certificate files not found. Exiting...');
+    process.exit(1);
+}
+
 https.createServer({
-    key: fs.readFileSync('/etc/letsencrypt/live/btiplatform.com/privkey.pem'),
-    cert: fs.readFileSync('/etc/letsencrypt/live/btiplatform.com/fullchain.pem'),
+    key: fs.readFileSync(keyPath),
+    cert: fs.readFileSync(certPath),
 }, app)
-.listen(PORT, () => {
-    console.log(`Listening on port ${PORT}!`);
+.listen(SERVER_PORT, () => {
+    console.log(`Listening on port ${SERVER_PORT}!`);
 });

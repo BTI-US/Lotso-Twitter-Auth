@@ -1,10 +1,23 @@
 # Use an official Node runtime as a parent image
-FROM node:14
+FROM node:20
+
+# Update npm
+RUN npm install -g npm@10.5.0
 
 # Define build arguments
+ARG DOCKER_ENV="true"
+ARG PRIVKEY_PATH
+ARG CERT_PATH
+ARG SERVER_PORT
+ARG MONGODB_USERNAME
+ARG MONGODB_PASSWORD
+ARG MONGODB_PORT
+ARG MONGODB_DB
+ARG MONGODB_USERDB
 ARG TWITTER_CONSUMER_KEY
 ARG TWITTER_CONSUMER_SECRET
-ARG PORT
+ARG REDIS_HOST="redis"
+ARG REDIS_PORT
 
 # Set the working directory in the container
 WORKDIR /usr/src/app

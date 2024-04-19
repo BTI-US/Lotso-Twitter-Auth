@@ -4,9 +4,14 @@ services:
   twitter-auth:
     container_name: twitter-auth
     image: twitter-auth:latest
+    volumes:
+      - ${HOST_CERT_FOLDER}:${CONTAINER_CERT_FOLDER}
     build: .
     environment:
       DOCKER_ENV: ${DOCKER_ENV:-true}
+      PRIVKEY_PATH: ${PRIVKEY_PATH}
+      CERT_PATH: ${CERT_PATH}
+      SERVER_PORT: ${SERVER_PORT:-5000}
       MONGODB_DB: ${MONGODB_DB:-twitterLogs}
       MONGODB_USERDB: ${MONGODB_USERDB:-twitterUsers}
       MONGODB_PORT: ${MONGODB_PORT:-27017}
@@ -14,8 +19,11 @@ services:
       MONGODB_PASSWORD: ${MONGODB_PASSWORD}
       TWITTER_CONSUMER_KEY: ${TWITTER_CONSUMER_KEY}
       TWITTER_CONSUMER_SECRET: ${TWITTER_CONSUMER_SECRET}
+      REDIS_HOST: redis
+      # REDIS_PORT: ${REDIS_PORT:-6000}
+      REDIS_PORT: 6379
     ports:
-      - "5000:5000"
+      - "${SERVER_PORT:-5000}:${SERVER_PORT:-5000}"
     depends_on:
       - mongodb
     restart: always
@@ -27,7 +35,14 @@ services:
       MONGO_INITDB_ROOT_USERNAME: ${MONGODB_USERNAME:-admin}
       MONGO_INITDB_ROOT_PASSWORD: ${MONGODB_PASSWORD}
     ports:
-      - "${MONGODB_PORT:-27017}:27017"
+      - "${MONGODB_PORT:-27017}:${MONGODB_PORT:-27017}"
     volumes:
       - "/root/mongodb:/data/db"
+    restart: always
+
+  redis:
+    container_name: redis
+    image: redis:latest
+    ports:
+      - "${REDIS_PORT:-6000}:${REDIS_PORT:-6000}"
     restart: always
