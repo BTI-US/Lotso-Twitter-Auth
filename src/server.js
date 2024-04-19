@@ -206,17 +206,25 @@ app.get('/check-follow', (req, res) => {
     console.log("Endpoint hit: /check-follow");
 
     if (req.session.accessToken && req.session.accessTokenSecret) {
-        const { username } = req.query; // Get the username from the query parameters
+        const { userName } = req.query; // Get the username from the query parameters
+        if (!userName) {
+            return res.status(400).json({ error: 'userName are required' });
+        }
 
         // Fetch the user ID from the username first
         utils.getUserTwitterId(req.session.accessToken, req.session.accessTokenSecret)
             .then(userId => {
-                // Now check if the user is followed using the fetched user ID
-                utils.checkIfFollowed(req.session.accessToken, req.session.accessTokenSecret, userId)
-                    .then(result => res.json(result))
-                    .catch(error => res.status(500).json({ error: error.toString() }));
-            })
+                // Fetch the target user's ID from the username
+                utils.fetchUserId(userName, req.session.accessToken, req.session.accessTokenSecret)
+                    .then(targetUserId => {
+                        // Now check if the user is followed using the fetched user ID
+                        utils.checkIfFollowed(req.session.accessToken, req.session.accessTokenSecret, userId, targetUserId)
+                            .then(result => res.json(result))
+                            .catch(error => res.status(500).json({ error: error.toString() }));
+                    })
             .catch(error => res.status(500).json({ error: error.message }));
+        })
+        .catch(error => res.status(500).json({ error: error.message }));
     } else {
         res.status(401).json({ error: 'Authentication required' });
     }
@@ -230,9 +238,9 @@ app.get('/check-like', (req, res) => {
     console.log("Endpoint hit: /check-like");
 
     if (req.session.accessToken && req.session.accessTokenSecret) {
-        const { userName, tweetId } = req.query;
-        if (!userName || !tweetId) {
-            return res.status(400).json({ error: 'Username and tweetId are required' });
+        const { tweetId } = req.query;
+        if (!tweetId) {
+            return res.status(400).json({ error: 'tweetId are required' });
         }
 
         // Get the current user's Twitter ID
@@ -282,11 +290,7 @@ app.get('/retweet', (req, res) => {
     }
     console.log("Endpoint hit: /retweet");
 
-    // TEST: print the request query parameters
-    console.log("TEST: Query parameters:", req.query);
-
     if (req.session.accessToken && req.session.accessTokenSecret) {
-        console.log("TEST: Access token and secret found");
         const { tweetId } = req.query;
         if (!tweetId) {
             console.log("tweetId not found");

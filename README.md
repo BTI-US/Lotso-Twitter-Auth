@@ -138,9 +138,10 @@ The application has the following endpoints:
 - `/check-auth-status`: Checks if the user is authenticated.
 - `/check-retweet`: Checks if a tweet has been retweeted by the user.
 - `/check-like`: Checks if a tweet has been liked by the user.
-- `/check-follow`: Checks if a user is being followed by the authenticated user.
+- `/check-follow`: Checks if a user is following the specified account.
 - `/check-bookmark`: Checks if a tweet has been bookmarked by the user.
-
+- `/check-airdrop`: Checks if user has claimed an airdrop.
+- `/log-airdrop`: Logs the airdrop claim.
 
 ## Milestones
 - [x] Implement OAuth with Twitter.
