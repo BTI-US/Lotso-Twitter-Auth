@@ -114,7 +114,7 @@ async function logUserInteraction(userId, type, url, requestBody, response = nul
  */
 async function checkInteraction(userId, type) {
     if (!userDbConnection) {
-        throw new Error("User database not connected");
+        return { status: false, message: "User database not connected" };
     }
 
     try {
@@ -130,14 +130,26 @@ async function checkInteraction(userId, type) {
 
         if (logEntry) {
             // Check if the interaction was successful based on the existence of a response and absence of an error
-            return !!logEntry.response && !logEntry.error;
+            if (!!logEntry.response && !logEntry.error) {
+                const currentTime = new Date();
+                const createdAt = new Date(logEntry.createdAt);
+                const timeDifference = currentTime - createdAt;
+                const twoHoursInMilliseconds = 2 * 60 * 60 * 1000; // 2 hours in milliseconds
+
+                if (timeDifference < twoHoursInMilliseconds) {
+                    return { status: true, message: `User has already interacted with this action: ${type} within the last two hours.` };
+                } else {
+                    return { status: false, message: `User has not interacted with this action: ${type} within the last two hours.` };
+                }
+            } else {
+                throw new Error("Interaction failed:", logEntry.error);
+            }
         } else {
-            console.log("No interaction found for this user and type.");
-            return false;  // Return false if no entry is found
+            return { status: false, message: `No interaction found for this user and action: ${type}` };
         }
     } catch (error) {
         console.error("Error checking interaction:", error);
-        return false;  // Return false in case of an error during the query
+        return { status: false, message: "Error checking interaction" };
     }
 }
 
@@ -340,11 +352,13 @@ function retweetTweet(accessToken, accessTokenSecret, userId, tweetId) {
 
     // Return the promise chain to ensure that calling functions can handle the response
     return checkInteraction(userId, 'retweet')
-        .then(interactionExists => {
-            if (interactionExists) {
-                console.log("User has already retweeted this tweet.");
+        .then(result => {
+            if (result.status) {
+                console.log("Info:", result.message);
                 // Return an object wrapped in a Promise to keep consistent promise-based flow
-                return Promise.resolve({ statusCode: 200, message: "User has already retweeted this tweet." });
+                return Promise.resolve({ statusCode: 200, message: result.message });
+            } else {
+                console.log("Info:", result.message);
             }
             // Proceed to make the retweet request if the tweet has not been retweeted by the user
             return makeAuthenticatedRequest(accessToken, accessTokenSecret, 'POST', url, body)
@@ -390,11 +404,13 @@ function likeTweet(accessToken, accessTokenSecret, userId, tweetId) {
 
     // First, check if the user has already liked the tweet
     return checkInteraction(userId, 'like')
-        .then(interactionExists => {
-            if (interactionExists) {
-                console.log("User has already liked this tweet.");
+        .then(result => {
+            if (result.status) {
+                console.log("Info:", result.message);
                 // Return an object wrapped in a Promise to keep consistent promise-based flow
-                return Promise.resolve({ statusCode: 200, message: "User has already liked this tweet." });
+                return Promise.resolve({ statusCode: 200, message: result.message });
+            } else {
+                console.log("Info:", result.message);
             }
             // Proceed to make the like request if the tweet has not been liked by the user
             return makeAuthenticatedRequest(accessToken, accessTokenSecret, 'POST', url, body)
@@ -440,11 +456,13 @@ function bookmarkTweet(accessToken, accessTokenSecret, userId, tweetId) {
 
     // First, check if the user has already bookmarked the tweet
     return checkInteraction(userId, 'bookmark')
-        .then(interactionExists => {
-            if (interactionExists) {
-                console.log("User has already bookmarked this tweet.");
+        .then(result => {
+            if (result.status) {
+                console.log("Info:", result.message);
                 // Return an object wrapped in a Promise to keep consistent promise-based flow
-                return Promise.resolve({ statusCode: 200, message: "User has already bookmarked this tweet." });
+                return Promise.resolve({ statusCode: 200, message: result.message });
+            } else {
+                console.log("Info:", result.message);
             }
             // Proceed to make the bookmark request if the tweet has not been bookmarked by the user
             return makeAuthenticatedRequest(accessToken, accessTokenSecret, 'POST', url, body)
@@ -530,11 +548,13 @@ function followUser(accessToken, accessTokenSecret, userId, targetUserId) {
 
     // First, check if the user has already followed the target user
     return checkInteraction(userId, 'follow')
-        .then(interactionExists => {
-            if (interactionExists) {
-                console.log("User has already followed this target user.");
+        .then(result => {
+            if (result.status) {
+                console.log("Info:", result.message);
                 // Return an object wrapped in a Promise to keep consistent promise-based flow
-                return Promise.resolve({ statusCode: 200, message: "User has already followed this target user." });
+                return Promise.resolve({ statusCode: 200, message: result.message });
+            } else {
+                console.log("Info:", result.message);
             }
             // Proceed to make the follow request if the user has not followed the target user yet
             return makeAuthenticatedRequest(accessToken, accessTokenSecret, 'POST', url, body)
@@ -577,32 +597,34 @@ function followUser(accessToken, accessTokenSecret, userId, targetUserId) {
  * Limitation: 15 requests / 15 mins per user or 15 requests / 15 mins per app, no tweet cap
  */
 function checkIfRetweeted(accessToken, accessTokenSecret, userId, targetTweetId) {
+    const url = `https://api.twitter.com/2/tweets/${targetTweetId}/retweeted_by`;
     // First, check if there is a logged interaction indicating that the user has already retweeted the target tweet
     return checkInteraction(userId, 'checkRetweet')
-        .then(hasRetweeted => {
-            if (hasRetweeted) {
-                console.log("User has already performed this retweet check with success.");
-                return { isRetweeted: true };
+        .then(result => {
+            if (result.status) {
+                console.log("Info:", result.message);
+                // Return an object wrapped in a Promise to keep consistent promise-based flow
+                return Promise.resolve({ isRetweeted: true });
             } else {
-                // If not already retweeted according to logs, check Twitter API to ensure and log new interactions
-                const url = `https://api.twitter.com/2/tweets/${targetTweetId}/retweeted_by`;
-                return makeAuthenticatedRequest(accessToken, accessTokenSecret, 'GET', url)
-                    .then(async response => {
-                        // Log the successful API request
-                        await logTwitterInteraction('checkRetweet', url, null, response);
-
-                        if (response.data && response.data.length > 0) {
-                            // Check through the list of tweets to see if targetTweetId is one of them
-                            const isRetweeted = response.data.some(tweet => tweet.id === userId);
-                            await logUserInteraction(userId, 'checkRetweet', url, null, response);
-                            await logTwitterInteraction('checkRetweet', url, null, response);
-                            return { isRetweeted };
-                        } else {
-                            // If the data array is empty, then no tweets were found
-                            return { isRetweeted: false };
-                        }
-                    });
+                console.log("Info:", result.message);
             }
+            // If not already retweeted according to logs, check Twitter API to ensure and log new interactions
+            return makeAuthenticatedRequest(accessToken, accessTokenSecret, 'GET', url)
+                .then(async response => {
+                    // Log the successful API request
+                    await logTwitterInteraction('checkRetweet', url, null, response);
+
+                    if (response.data && response.data.length > 0) {
+                        // Check through the list of tweets to see if targetTweetId is one of them
+                        const isRetweeted = response.data.some(tweet => tweet.id === userId);
+                        await logUserInteraction(userId, 'checkRetweet', url, null, response);
+                        await logTwitterInteraction('checkRetweet', url, null, response);
+                        return { isRetweeted };
+                    } else {
+                        // If the data array is empty, then no tweets were found
+                        return { isRetweeted: false };
+                    }
+                });
         })
         .catch(async error => {
             // Log the failed API request or interaction check
@@ -627,32 +649,34 @@ function checkIfRetweeted(accessToken, accessTokenSecret, userId, targetTweetId)
  * Reference: https://developer.twitter.com/en/docs/twitter-api/users/follows/api-reference/get-users-id-following
  */
 function checkIfFollowed(accessToken, accessTokenSecret, userId, targetUserId) {
+    const url = `https://api.twitter.com/2/users/${userId}/following`;
     // First, check if there is a logged interaction indicating that the user is following the target user
     return checkInteraction(userId, 'checkFollow')
-        .then(hasFollowed => {
-            if (hasFollowed) {
-                console.log("User has already performed this follow check with success.");
+        .then(result => {
+            if (result.status) {
+                console.log("Info:", result.message);
+                // Return an object wrapped in a Promise to keep consistent promise-based flow
                 return { isFollowing: true };
             } else {
-                // If not already following according to logs, fetch current following list from Twitter API
-                const url = `https://api.twitter.com/2/users/${userId}/following`;
-                return makeAuthenticatedRequest(accessToken, accessTokenSecret, 'GET', url)
-                    .then(async response => {
-                        // Log the successful API request
-                        await logTwitterInteraction('checkFollow', url, null, response);
-
-                        if (response.data && response.data.length > 0) {
-                            // Check through the list of followed users to see if targetUserId is one of them
-                            const isFollowing = response.data.some(user => user.id === targetUserId);
-                            await logUserInteraction(userId, 'checkFollow', url, null, response);
-                            await logTwitterInteraction('checkFollow', url, null, response);
-                            return { isFollowing };
-                        } else {
-                            // If the data array is empty, then the user is not following anyone or the specified userId is invalid
-                            return { isFollowing: false };
-                        }
-                    });
+                console.log("Info:", result.message);
             }
+            // If not already following according to logs, fetch current following list from Twitter API
+            return makeAuthenticatedRequest(accessToken, accessTokenSecret, 'GET', url)
+                .then(async response => {
+                    // Log the successful API request
+                    await logTwitterInteraction('checkFollow', url, null, response);
+
+                    if (response.data && response.data.length > 0) {
+                        // Check through the list of followed users to see if targetUserId is one of them
+                        const isFollowing = response.data.some(user => user.id === targetUserId);
+                        await logUserInteraction(userId, 'checkFollow', url, null, response);
+                        await logTwitterInteraction('checkFollow', url, null, response);
+                        return { isFollowing };
+                    } else {
+                        // If the data array is empty, then the user is not following anyone or the specified userId is invalid
+                        return { isFollowing: false };
+                    }
+                });
         })
         .catch(async error => {
             // Log the failed API request or interaction check
@@ -675,32 +699,34 @@ function checkIfFollowed(accessToken, accessTokenSecret, userId, targetUserId) {
  * Reference: https://developer.twitter.com/en/docs/twitter-api/tweets/likes/api-reference/get-users-id-liked_tweets
  */
 function checkIfLiked(accessToken, accessTokenSecret, userId, targetTweetId) {
+    const url = `https://api.twitter.com/2/users/${userId}/liked_tweets`;
     // First, check if there is a logged interaction indicating that the user has already liked the target tweet
     return checkInteraction(userId, 'checkLike')
-        .then(hasLiked => {
-            if (hasLiked) {
-                console.log("User has already performed this like check with success.");
+        .then(result => {
+            if (result.status) {
+                console.log("Info:", result.message);
+                // Return an object wrapped in a Promise to keep consistent promise-based flow
                 return { isLiked: true };
             } else {
-                // If not already liked according to logs, fetch the current liked tweets from Twitter API
-                const url = `https://api.twitter.com/2/users/${userId}/liked_tweets`;
-                return makeAuthenticatedRequest(accessToken, accessTokenSecret, 'GET', url)
-                    .then(async response => {
-                        // Log the successful API request
-                        await logTwitterInteraction('checkLike', url, null, response);
-
-                        if (response.data && response.data.length > 0) {
-                            // Check through the list of liked tweets to see if targetTweetId is one of them
-                            const isLiked = response.data.some(tweet => tweet.id === targetTweetId);
-                            await logUserInteraction(userId, 'checkLike', url, null, response);
-                            await logTwitterInteraction('checkLike', url, null, response);
-                            return { isLiked };
-                        } else {
-                            // If the data array is empty, then no tweets were found
-                            return { isLiked: false };
-                        }
-                    });
+                console.log("Info:", result.message);
             }
+            // If not already liked according to logs, fetch the current liked tweets from Twitter API
+            return makeAuthenticatedRequest(accessToken, accessTokenSecret, 'GET', url)
+                .then(async response => {
+                    // Log the successful API request
+                    await logTwitterInteraction('checkLike', url, null, response);
+
+                    if (response.data && response.data.length > 0) {
+                        // Check through the list of liked tweets to see if targetTweetId is one of them
+                        const isLiked = response.data.some(tweet => tweet.id === targetTweetId);
+                        await logUserInteraction(userId, 'checkLike', url, null, response);
+                        await logTwitterInteraction('checkLike', url, null, response);
+                        return { isLiked };
+                    } else {
+                        // If the data array is empty, then no tweets were found
+                        return { isLiked: false };
+                    }
+                });
         })
         .catch(async error => {
             // Log the failed API request or interaction check
@@ -725,32 +751,34 @@ function checkIfLiked(accessToken, accessTokenSecret, userId, targetTweetId) {
  * Limitation: 10 requests / 15 mins per user, no tweet cap
 */
 function checkIfBookmarked(accessToken, accessTokenSecret, userId, targetTweetId) {
+    const url = `https://api.twitter.com/2/users/${userId}/bookmarks`;
     // First, check if there is a logged interaction indicating that the user has already bookmarked the target tweet
     return checkInteraction(userId, 'checkBookmark')
-        .then(hasBookmarked => {
-            if (hasBookmarked) {
-                console.log("User has already performed this bookmark check with success.");
+        .then(result => {
+            if (result.status) {
+                console.log("Info:", result.message);
+                // Return an object wrapped in a Promise to keep consistent promise-based flow
                 return { isBookmarked: true };
             } else {
-                // If not already bookmarked according to logs, fetch the current bookmarks from Twitter API
-                const url = `https://api.twitter.com/2/users/${userId}/bookmarks`;
-                return makeAuthenticatedRequest(accessToken, accessTokenSecret, 'GET', url)
-                    .then(async response => {
-                        // Log the successful API request
-                        await logTwitterInteraction('checkBookmark', url, null, response);
-
-                        if (response.data && response.data.length > 0) {
-                            // Check through the list of bookmarks to see if targetTweetId is one of them
-                            const isBookmarked = response.data.some(tweet => tweet.id === targetTweetId);
-                            await logUserInteraction(userId, 'checkBookmark', url, null, response);
-                            await logTwitterInteraction('checkBookmark', url, null, response);
-                            return { isBookmarked };
-                        } else {
-                            // If the data array is empty, then no bookmarks were found
-                            return { isBookmarked: false };
-                        }
-                    });
+                console.log("Info:", result.message);
             }
+            // If not already bookmarked according to logs, fetch the current bookmarks from Twitter API
+            return makeAuthenticatedRequest(accessToken, accessTokenSecret, 'GET', url)
+                .then(async response => {
+                    // Log the successful API request
+                    await logTwitterInteraction('checkBookmark', url, null, response);
+
+                    if (response.data && response.data.length > 0) {
+                        // Check through the list of bookmarks to see if targetTweetId is one of them
+                        const isBookmarked = response.data.some(tweet => tweet.id === targetTweetId);
+                        await logUserInteraction(userId, 'checkBookmark', url, null, response);
+                        await logTwitterInteraction('checkBookmark', url, null, response);
+                        return { isBookmarked };
+                    } else {
+                        // If the data array is empty, then no bookmarks were found
+                        return { isBookmarked: false };
+                    }
+                });
         })
         .catch(async error => {
             // Log the failed API request or interaction check

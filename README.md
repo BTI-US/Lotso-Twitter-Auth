@@ -19,6 +19,7 @@
    - [Setting Up Twitter API Keys](#setting-up-twitter-api-keys)
    - [Building the Docker Image](#building-the-docker-image)
    - [Building the MongoDB Docker Image](#building-the-mongodb-docker-image)
+   - [Building the Redis Docker Image](#building-the-redis-docker-image)
 - [Running the Application](#running-the-application)
 - [How to Acquire Twitter API Keys](#how-to-acquire-twitter-api-keys)
    - [User Authentication Settings](#user-authentication-settings)
