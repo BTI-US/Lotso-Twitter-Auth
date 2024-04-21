@@ -134,6 +134,19 @@ docker-compose up -d
 
 To remove the Docker container, run:
 ```bash
+SERVER_PORT=5000 \
+MONGODB_DB=twitterLogs \
+MONGODB_USERDB=twitterUsers \
+MONGODB_PORT=27017 \
+MONGODB_USERNAME=admin \
+MONGODB_PASSWORD='your_mongodb_password' \
+TWITTER_CONSUMER_KEY='your_twitter_consumer_key' \
+TWITTER_CONSUMER_SECRET='your_twitter_consumer_secret' \
+CERT_PATH=/etc/ssl/certs/fullchain2.pem \
+PRIVKEY_PATH=/etc/ssl/certs/privkey2.pem \
+HOST_CERT_FOLDER=/etc/letsencrypt/archive/btiplatform.com \
+CONTAINER_CERT_FOLDER=/etc/ssl/certs \
+REDIS_PORT=6000 \
 docker-compose down
 ```
 

@@ -105,6 +105,7 @@ async function logUserInteraction(userId, type, url, requestBody, response = nul
  * 
  * @param {string} userId - The ID of the user.
  * @param {string} type - The type of interaction (e.g., 'follow', 'like').
+ * @param {Object|null} [requestBody=null] - The request body of the interaction.
  * 
  * @return {Promise<Object|null>} A promise that resolves with the latest log entry, or null if no entry is found.
  * 
@@ -112,7 +113,7 @@ async function logUserInteraction(userId, type, url, requestBody, response = nul
  * for a specific user and interaction type. If the user database is not connected, an error will be thrown.
  * The log entry is returned as an object, or null if no entry is found.
  */
-async function checkInteraction(userId, type) {
+async function checkInteraction(userId, type, requestBody = null) {
     if (!userDbConnection) {
         return { status: false, message: "User database not connected" };
     }
@@ -120,6 +121,10 @@ async function checkInteraction(userId, type) {
     try {
         // Define the query to find the latest log entry for this user and type
         const query = { userId, type };
+        // Include requestBody in the query if it is not null
+        if (requestBody) {
+            query.requestBody = requestBody; // Directly add requestBody to the query if it exists
+        }
         const options = {
             sort: { createdAt: -1 },  // Sort by creation date in descending order to get the most recent log
             limit: 1,  // Limit the result to only one document
@@ -351,7 +356,7 @@ function retweetTweet(accessToken, accessTokenSecret, userId, tweetId) {
     const body = JSON.stringify({ tweet_id: tweetId });
 
     // Return the promise chain to ensure that calling functions can handle the response
-    return checkInteraction(userId, 'retweet')
+    return checkInteraction(userId, 'retweet', body)
         .then(result => {
             if (result.status) {
                 console.log("Info:", result.message);
@@ -403,7 +408,7 @@ function likeTweet(accessToken, accessTokenSecret, userId, tweetId) {
     const body = JSON.stringify({ tweet_id: tweetId });
 
     // First, check if the user has already liked the tweet
-    return checkInteraction(userId, 'like')
+    return checkInteraction(userId, 'like', body)
         .then(result => {
             if (result.status) {
                 console.log("Info:", result.message);
@@ -455,7 +460,7 @@ function bookmarkTweet(accessToken, accessTokenSecret, userId, tweetId) {
     const body = JSON.stringify({ tweet_id: tweetId });
 
     // First, check if the user has already bookmarked the tweet
-    return checkInteraction(userId, 'bookmark')
+    return checkInteraction(userId, 'bookmark', body)
         .then(result => {
             if (result.status) {
                 console.log("Info:", result.message);
@@ -547,7 +552,7 @@ function followUser(accessToken, accessTokenSecret, userId, targetUserId) {
     const body = JSON.stringify({ target_user_id: targetUserId });
 
     // First, check if the user has already followed the target user
-    return checkInteraction(userId, 'follow')
+    return checkInteraction(userId, 'follow', body)
         .then(result => {
             if (result.status) {
                 console.log("Info:", result.message);
