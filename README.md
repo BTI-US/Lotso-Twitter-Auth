@@ -187,6 +187,8 @@ The application has the following endpoints:
 - `/check-airdrop`: Checks if user has claimed an airdrop.
 - `/log-airdrop`: Logs the airdrop claim.
 
+Refer to the [API Documentation](docs/REST_API_Endpoints.md) for detailed information on each endpoint.
+
 ## Milestones
 - [x] Implement OAuth with Twitter.
 - [x] Basic functionality to interact with Twitter API.
