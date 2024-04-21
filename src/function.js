@@ -7,19 +7,18 @@ let userDbConnection = null;
 mongoUtil.connectToServer()
     .then(({ dbConnection: localDbConnection, userDbConnection: localUserDbConnection }) => {
         console.log("Successfully connected to MongoDB.");
-        // Create index on 'twitterInteractions' after ensuring the database connection is established
-        localUserDbConnection.collection('twitterInteractions').createIndex({ userId: 1, type: 1 }, { unique: true })
-            .then(() => console.log("Index created successfully on 'twitterInteractions'"))
-            .catch(err => console.error("Error creating index:", err));
+        // Create indexes after ensuring the database connection is established
+        const createIndex = (collection, index, unique = false) => collection.createIndex(index, { unique })
+            .then(() => console.log(`Index created successfully on ${collection.collectionName}`))
+            .catch(err => console.error(`Error creating index on ${collection.collectionName}:`, err));
 
-        localUserDbConnection.collection('airdropClaim').createIndex({ userId: 1 }, { unique: true })
-            .then(() => console.log("Unique index created successfully on 'userId' for airdropClaim"))
-            .catch(err => console.error("Error creating unique index on 'userId' for airdropClaim:", err));
-
-        // Create index on 'airdropClaim' after ensuring the database connection is established
-        localUserDbConnection.collection('airdropClaim').createIndex({ userId: 1, userAddress: 1, createdAt: -1 }, { unique: false })
-            .then(() => console.log("Index created successfully on 'airdropClaim'"))
-            .catch(err => console.error("Error creating index:", err));
+        Promise.all([
+            createIndex(localUserDbConnection.collection('twitterInteractions'), { userId: 1, type: 1 }, true),
+            createIndex(localUserDbConnection.collection('airdropClaim'), { userId: 1 }, true),
+            createIndex(localUserDbConnection.collection('airdropClaim'), { userId: 1, userAddress: 1, createdAt: -1 }),
+            createIndex(localUserDbConnection.collection('promotionCode'), { userId: 1, promotionCode: 1, createdAt: -1 }, true),
+        ])
+            .catch(err => console.error("Error creating indexes:", err));
         
         dbConnection = localDbConnection;
         userDbConnection = localUserDbConnection;
@@ -102,6 +101,35 @@ async function logUserInteraction(userId, type, url, requestBody, response = nul
 
     // Use the userDb to update the interaction log, or insert a new one if it does not exist
     await userDbConnection.collection('twitterInteractions').updateOne(filter, update, { upsert: true });
+}
+
+// TODO:
+async function checkUserSteps(userId, requiredTypes) {
+    if (!userDbConnection) {
+        throw new Error("User database not connected");
+    }
+
+    try {
+        // Query the database for unique types for the specific user
+        const typesResult = await userDbConnection.collection('twitterInteractions').distinct('type', { userId });
+        
+        // Check if all required types are present in the result
+        const hasAllTypes = requiredTypes.every(type => typesResult.includes(type));
+
+        // Check if there are at least two distinct requestBody values for the type 'retweet'
+        const retweetBodyCount = await userDbConnection.collection('twitterInteractions').aggregate([
+            { $match: { userId, type: 'retweet' } },
+            { $group: { _id: "$requestBody" } },
+            { $count: "distinctRequestBodies" },
+        ]).toArray();
+
+        const hasMultipleRetweets = retweetBodyCount.length > 0 && retweetBodyCount[0].distinctRequestBodies >= 2;
+
+        return hasAllTypes && hasMultipleRetweets;
+    } catch (error) {
+        console.error("Error checking user interactions:", error);
+        throw new Error("Error checking user interactions");
+    }
 }
 
 /**
@@ -817,6 +845,37 @@ function checkIfBookmarked(accessToken, accessTokenSecret, userId, targetTweetId
         });
 }
 
+/**
+ * @brief Checks if a user has completed all required interactions on Twitter.
+ * 
+ * @param {string} userId - The ID of the user to check.
+ * 
+ * @return {Promise<{ isFinished: boolean }>} A promise that resolves to an object containing the result of the check.
+ * 
+ * @note This function checks if the specified user has completed all the required interaction types on Twitter, including like, retweet, reply, and follow.
+ * It uses the checkUserSteps function to determine if the user has completed all interactions.
+ * If the user has completed all interactions, the promise resolves to { isFinished: true }, otherwise it resolves to { isFinished: false }.
+ * If there is an error during the process, the promise is rejected with the error.
+ */
+function checkIfFinished(userId) {
+    const requiredTypes = ["like", "retweet", "reply", "follow"];
+
+    // Replace 'someUserId' with the actual userId you want to check
+    return checkUserSteps(userId, requiredTypes)
+        .then(hasAllInteractions => {
+            if (hasAllInteractions) {
+                console.log("User has all required interaction types.");
+                return { isFinished: true };
+            } else {
+                console.log("User does not have all required interaction types.");
+                return { isFinished: false };
+            }
+        })
+        .catch(error => {
+            console.error("Failed to check user interactions:", error);
+        });
+}
+
 module.exports = {
     getUserTwitterId,
     makeAuthenticatedRequest,
@@ -831,4 +890,5 @@ module.exports = {
     checkIfBookmarked,
     checkIfClaimedAirdrop,
     logUserAirdrop,
+    checkIfFinished,
 };

@@ -6,6 +6,7 @@ const cors = require('cors');
 const session = require('express-session');
 const crypto = require('crypto');
 const redis = require('redis');
+const axios = require('axios');
 const RedisStore = require('connect-redis').default;
 const utils = require('./function');
 
@@ -66,6 +67,16 @@ const corsOptions = {
     allowedHeaders: '*', // Accept any headers
     exposedHeaders: '*', // Expose any headers
 };
+
+function generateRandomString(length) {
+    let result = '';
+    const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    const charactersLength = characters.length;
+    for (let i = 0; i < length; i += 1) {
+        result += characters.charAt(Math.floor(Math.random() * charactersLength));
+    }
+    return result;
+}
 
 // Function to generate a secret key
 function generateSecretKey(length = 32) {
@@ -462,6 +473,106 @@ app.get('/log-airdrop', (req, res) => {
     }
 });
 app.options('/log-airdrop', cors(corsOptions)); // Enable preflight request for this endpoint
+
+// This endpoint will only be trigger when the user clicks the "Check Airdrop Amount" button
+app.get('/check-airdrop-amount', (req, res) => {
+    if (!req.session) {
+        return res.status(400).send("No session found");
+    }
+    console.log("Endpoint hit: /check-airdrop-amount");
+
+    if (req.session.accessToken && req.session.accessTokenSecret) {
+        const { address, promotionCode, step } = req.query;
+        if (!address || !step) {
+            console.log("Address or promotionCode or step not found");
+            return res.status(400).json({ error: 'Address and promotionCode and step are required' });
+        }
+        const stepNumber = Number(step);
+        if (!Number.isInteger(stepNumber) || ![0, 1, 2, 3, 4].includes(stepNumber)) {
+            console.log("Step is not a valid number");
+            return res.status(400).json({ error: 'Step must be a number and value is 0,1,2,3,4' });
+        }
+
+        // Perform a HTTP GET request
+        let apiUrl = null;
+        if (promotionCode) {
+            apiUrl = `https://api.btiplatform.com/v1/info/transaction_count?address=${encodeURIComponent(address)}&step=${encodeURIComponent(step)}&promotion_code=${encodeURIComponent(promotionCode)}`;
+        } else {
+            apiUrl = `https://api.btiplatform.com/v1/info/transaction_count?address=${encodeURIComponent(address)}&step=${encodeURIComponent(step)}`;
+        }
+        axios.get(apiUrl)
+            .then(response => {
+                // Axios will automatically parse the JSON response and wrap it into data property
+                console.log('Airdrop checking response:', response.data);
+                res.json(response.data);
+            })
+            .catch(err => {
+                console.error('Error checking promotion:', err.message);
+                res.status(500).json({
+                    error: "Failed to log promotion",
+                    details: err.message,
+                });
+            });
+    } else {
+        res.status(401).json({ error: 'Authentication required' });
+    }
+});
+app.options('/check-airdrop-amount', cors(corsOptions)); // Enable preflight request for this endpoint
+
+// This endpoint will only be trigger when the user clicks the "Generate Promotion Code" button
+app.get('/log-promotion', (req, res) => {
+    if (!req.session) {
+        return res.status(400).send("No session found");
+    }
+    console.log("Endpoint hit: /log-promotion");
+
+    if (req.session.accessToken && req.session.accessTokenSecret) {
+        const { address } = req.query;
+        if (!address) {
+            console.log("Address not found");
+            return res.status(400).json({ error: 'Address are required' });
+        }
+        // TODO:
+        // Fetch the user ID from the username first
+        utils.getUserTwitterId(req.session.accessToken, req.session.accessTokenSecret)
+            .then(userId => {
+                utils.checkIfFinished(userId)
+                    .then(result => {
+                        if (result.isFinished) {
+                            console.log("User has completed all required steps and is eligible for reward.");
+                            // Generate a 16-character promotion code
+                            const promotionCode = generateRandomString(16);
+                            // Perform a HTTP GET request
+                            const apiUrl = `https://api.btiplatform.com/v1/info/log_promotion?address=${encodeURIComponent(address)}&promotion_code=${encodeURIComponent(promotionCode)}`;
+
+                            axios.get(apiUrl)
+                                .then(response => {
+                                    // Axios will automatically parse the JSON response and wrap it into data property
+                                    console.log('Promotion logged successfully:', response.data);
+                                    res.json(response.data);
+                                })
+                                .catch(err => {
+                                    console.error('Error logging promotion:', err.message);
+                                    res.status(500).json({
+                                        error: "Failed to log promotion",
+                                        details: err.message,
+                                    });
+                                });
+                        } else {
+                            res.json(result);
+                        }
+                    })
+                    .catch(error => res.status(500).json({
+                        error: "Failed to check step status",
+                        details: error,
+                    }));
+            })
+            .catch(error => res.status(500).json({ error: error.message }));
+    } else {
+        res.status(401).json({ error: 'Authentication required' });
+    }
+});
+app.options('/log-promotion', cors(corsOptions)); // Enable preflight request for this endpoint
 
 const SERVER_PORT = process.env.SERVER_PORT || 5000;
 const keyPath = process.env.PRIVKEY_PATH;
