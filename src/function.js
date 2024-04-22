@@ -14,9 +14,9 @@ mongoUtil.connectToServer()
 
         Promise.all([
             createIndex(localUserDbConnection.collection('twitterInteractions'), { userId: 1, type: 1 }, true),
-            createIndex(localUserDbConnection.collection('airdropClaim'), { userId: 1 }, true),
-            createIndex(localUserDbConnection.collection('airdropClaim'), { userId: 1, userAddress: 1, createdAt: -1 }),
-            createIndex(localUserDbConnection.collection('promotionCode'), { userId: 1, promotionCode: 1, createdAt: -1 }, true),
+            createIndex(localUserDbConnection.collection('airdropClaim'), { userId: 1, userAddress: 1, createdAt: -1 }, true),
+            createIndex(localUserDbConnection.collection('promotionCode'), { userAdress: 1, promotionCode: 1, createdAt: -1 }, true),
+            createIndex(localUserDbConnection.collection('users'), { userAddress: 1 }),
         ])
             .catch(err => console.error("Error creating indexes:", err));
         
@@ -274,8 +274,8 @@ async function logUserAirdrop(userId, userAddress) {
 
         return { isLogged: true };
     } else {
-        // Log the interaction to the database
-        await userDbConnection.collection('airdropClaim').insertOne(logEntry);
+        // Update the existing entry instead of inserting a new one
+        await userDbConnection.collection('airdropClaim').updateOne({ userId }, { $set: logEntry });
         console.log(`Airdrop re-logged for userId: ${userId}, address not repeated due to previous log.`);
 
         return { isLogged: false };
@@ -876,6 +876,83 @@ function checkIfFinished(userId) {
         });
 }
 
+function generateRandomString(length) {
+    let result = '';
+    const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    const charactersLength = characters.length;
+    for (let i = 0; i < length; i += 1) {
+        result += characters.charAt(Math.floor(Math.random() * charactersLength));
+    }
+    return result;
+}
+
+async function generatePromotionCode(userAddress) {
+    try {
+        const promotionCode = generateRandomString(16); // Function to generate a random string
+        await userDbConnection.collection('promotionCode').insertOne({
+            userAddress,
+            promotionCode,
+            createdAt: new Date(),
+        });
+        return promotionCode; // Return the promotion code after successful insertion
+    } catch (error) {
+        console.error('Failed to generate and store promotion code:', error);
+        throw new Error('Error generating promotion code'); // Re-throw or handle error as needed
+    }
+}
+
+async function usePromotionCode(userAddress, promotionCode) {
+    try {
+        // Fetch the promotion document using the promotion code
+        const promoDoc = await userDbConnection.collection('promotionCode').findOne({ promotionCode }, { sort: { createdAt: -1 } });
+
+        if (promoDoc) {
+            // Proceed with updating the user record if the promotion code is found
+            return await userDbConnection.collection('users').updateOne(
+                { userAddress },
+                { $set: { parentAddress: promoDoc.userAddress } }, // Setting parentAddress based on the address found in the promoDoc
+            );
+        } else {
+            // Throw an error if no document is found with the provided promotion code
+            throw new Error('Invalid promotion code');
+        }
+    } catch (error) {
+        // Catch and handle any errors that occur during database operations
+        console.error('Error using promotion code:', error);
+        throw error; // Re-throw the error after logging it
+    }
+}
+
+// TODO:
+async function rewardParentUser(userAddress) {
+    try {
+        // Retrieve the child user's document to get the parent address
+        const doc = await userDbConnection.collection('users').findOne({ userAddress });
+        if (doc && doc.parentAddress) {
+            const claim = await userDbConnection.collection('airdropClaim').findOne({ userAddress: doc.parentAddress }, { sort: { createdAt: -1 } });
+
+            if (!claim) {
+                console.log('No address found for parent user.');
+                return null;
+            }
+
+            const parentAddress = claim.userAddress;
+            // Logic to reward the parent user with the address can be added here
+            console.log(`Rewarding parent at address ${parentAddress}`);
+            
+            // Return the address for further processing or confirmation
+            return parentAddress;
+        } else {
+            console.log('User not found or no parent address available.');
+            return null;
+        }
+    } catch (error) {
+        // Log or handle errors appropriately within the catch block
+        console.error('Error in rewarding parent user:', error);
+        throw error;  // Optionally re-throw the error to be handled by the caller
+    }
+}
+
 module.exports = {
     getUserTwitterId,
     makeAuthenticatedRequest,
@@ -891,4 +968,7 @@ module.exports = {
     checkIfClaimedAirdrop,
     logUserAirdrop,
     checkIfFinished,
+    generatePromotionCode,
+    usePromotionCode,
+    rewardParentUser,
 };
