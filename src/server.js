@@ -518,11 +518,11 @@ app.get('/check-airdrop-amount', (req, res) => {
 app.options('/check-airdrop-amount', cors(corsOptions)); // Enable preflight request for this endpoint
 
 // This endpoint will only be trigger when the user clicks the "Generate Promotion Code" button
-app.get('/log-promotion', (req, res) => {
+app.get('/generate-promotion-code', (req, res) => {
     if (!req.session) {
         return res.status(400).send("No session found");
     }
-    console.log("Endpoint hit: /log-promotion");
+    console.log("Endpoint hit: /generate-promotion-code");
 
     if (req.session.accessToken && req.session.accessTokenSecret) {
         const { address } = req.query;
@@ -560,7 +560,7 @@ app.get('/log-promotion', (req, res) => {
         res.status(401).json({ error: 'Authentication required' });
     }
 });
-app.options('/log-promotion', cors(corsOptions)); // Enable preflight request for this endpoint
+app.options('/generate-promotion-code', cors(corsOptions)); // Enable preflight request for this endpoint
 
 app.get('/send-airdrop-parent', (req, res) => {
     if (!req.session) {
@@ -603,6 +603,7 @@ app.get('/send-airdrop-parent', (req, res) => {
         res.status(401).json({ error: 'Authentication required' });
     }
 });
+app.options('/send-airdrop-parent', cors(corsOptions)); // Enable preflight request for this endpoint
 
 const SERVER_PORT = process.env.SERVER_PORT || 5000;
 const keyPath = process.env.PRIVKEY_PATH;

@@ -886,21 +886,54 @@ function generateRandomString(length) {
     return result;
 }
 
+/**
+ * @brief Generates and stores a promotion code for a user.
+ * 
+ * @param {string} userAddress - The address of the user.
+ * 
+ * @return {string} The generated promotion code.
+ * 
+ * @note If a promotion code already exists for the user, the existing code will be returned.
+ *       Otherwise, a new code will be generated and stored in the database.
+ * 
+ * @throws {Error} If there is an error generating or storing the promotion code.
+ */
 async function generatePromotionCode(userAddress) {
     try {
+        // Check if there is already a promotion code for this user
+        const existingCode = await userDbConnection.collection('promotionCode').findOne({ userAddress });
+        if (existingCode) {
+            return existingCode.promotionCode; // Return the existing code if found
+        }
+
+        // Generate a new code if not found
         const promotionCode = generateRandomString(16); // Function to generate a random string
         await userDbConnection.collection('promotionCode').insertOne({
             userAddress,
             promotionCode,
             createdAt: new Date(),
         });
-        return promotionCode; // Return the promotion code after successful insertion
+
+        return promotionCode; // Return the new promotion code after successful insertion
     } catch (error) {
         console.error('Failed to generate and store promotion code:', error);
         throw new Error('Error generating promotion code'); // Re-throw or handle error as needed
     }
 }
 
+/**
+ * @brief Uses a promotion code to update the user record with the parent address.
+ * 
+ * @param {string} userAddress - The address of the user.
+ * @param {string} promotionCode - The promotion code to be used.
+ * 
+ * @return {Promise<import('mongodb').UpdateWriteOpResult>} A promise that resolves to the result of the update operation.
+ * 
+ * @note This function fetches the promotion document using the provided promotion code from the 'promotionCode' collection in the database.
+ * If a document is found, the user record is updated with the parent address based on the address found in the promotion document.
+ * If no document is found with the provided promotion code, an error is thrown.
+ * Any errors that occur during database operations are caught and logged, and then re-thrown for the caller to handle.
+ */
 async function usePromotionCode(userAddress, promotionCode) {
     try {
         // Fetch the promotion document using the promotion code
@@ -923,7 +956,17 @@ async function usePromotionCode(userAddress, promotionCode) {
     }
 }
 
-// TODO:
+/**
+ * @brief Rewards the parent user with the given user address.
+ * 
+ * @param {string} userAddress - The address of the child user.
+ * 
+ * @return {string|null} The address of the parent user if found, otherwise null.
+ * 
+ * @note This function retrieves the parent address of the child user and rewards the parent user with the address.
+ * If the parent address is not found or no parent address is available, it returns null.
+ * Any errors that occur during the process are logged and optionally re-thrown.
+ */
 async function rewardParentUser(userAddress) {
     try {
         // Retrieve the child user's document to get the parent address

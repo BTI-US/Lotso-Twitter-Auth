@@ -186,6 +186,9 @@ The application has the following endpoints:
 - `/check-bookmark`: Checks if a tweet has been bookmarked by the user.
 - `/check-airdrop`: Checks if user has claimed an airdrop.
 - `/log-airdrop`: Logs the airdrop claim.
+- `/check-airdrop-amount`: Checks the amount of airdrop claimed by the user.
+- `/generate-promotion-code`: Generates a promotion code for the user.
+- `/send-airdrop-parent`: Sends an airdrop to the parent user.
 
 Refer to the [API Documentation](docs/REST_API_Endpoints.md) for detailed information on each endpoint.
 
