@@ -43,15 +43,81 @@ This project implements a serverless function hosted within a Docker container t
 - Twitter Developer Account and API keys (Consumer Keys Only).
 
 ## Diagram
-![Diagram](https://mermaid.ink/img/pako:eNp1VE1v4kAM_StWDqWVQNw5VCrt5tSqFR83LmZiYESYyXocULfqf19PhkCANpeJ5tnPz8_WfGXGF5SNskB_a3KGXiyuGXcLB_pVyGKNrdAJzAEDzAPxLZRHKGfvhFxxC48jPEaz_RGdRXR2sCKROuHzweNjPoLn0pptgN6rX4N1oDGbNrKXAp0XArbrjYBfgaa8V-QAwdEBBJew8gzvT7VsUniuvOMRTKiwTEZAPAyDqJgBakwqYLAslyoW5pPXWPVElijGSjGLFGpXkESuPNpbwmeDVOMGiInzy9rHXqApruXOzWuFY9N3DerZ_qNOgSuiruYziaoYnpCmtyRqT2xXth3kVUNoDIWQhEMdrFtfxbcNPnUD7yCQYZKWMkn8wDYgHrA6bgjsLULlg7wpAa7pl1E-lz4QyIYaB8jpxqBY786zyAdpT6bimdpC6llQ3hgY9F75QZdgj2xxWVL4ccEmJAci6fV11-yW9NSU3nSDTL2LzZlG-WgaGXx07H7IKb0Pw1Kz9Qgx8yF53jX0wvEPYl3PXctDJ-Lk-m3e2flj_VB5F6jjeR7nGG8LaIbeNb0Rozl1KR33dEovNlQlfp7biiFwP62TAHXiD7Pnh4XL-tmOeIe20AfjK7IsMp3MjhbZSH8LWmFkzxbuW0N1an766Uw2Eq6pn9VVgdK-L-2lLrEO6S29Qc1T9P0fbnmAKw)
 
-### Explanation of the Diagram:
+### Twitter OAuth Sequence Diagram
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant F as Frontend
+    participant B as Backend
+    participant T as Twitter
+
+    U->>F: Clicks 'Log in with Twitter'
+    note right of F: Open a new tab for OAuth
+    F->>B: Redirect to /start-auth with callback URL in a new tab
+    B->>T: Request OAuth token
+    T-->>B: OAuth token
+    B->>U: Redirect to Twitter auth URL
+    U->>T: Log in & authorize
+    T-->>U: Redirect to callback URL
+    U->>B: /callback with OAuth verifier
+    B->>T: Request access token using verifier
+    T-->>B: Access token & secret
+    B-->>U: Pass tokens to frontend via postMessage
+    note right of F: Close the authentication tab
+    F-->>F: Store tokens in session storage (redis)
+    U->>F: Clicks 'Retweet', 'Like', 'Bookmark', or 'Follow'
+    F->>B: Send action request (/retweet, /like, /bookmark, /follow) with access token
+    B->>T: Perform requested action using access token
+    T-->>B: Action response
+    B-->>F: Respond back to frontend with result
+    F-->>U: Display action result (Success or Error)
+```
+
+### Airdrop Sequence Diagram
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant F as Frontend
+    participant B as Backend
+    participant S as Airdrop Server
+
+    U->>F: Finished 4 missions <br>Clicks 'Claim Airdrop'
+    F->>B: Request promotion code <br>GET Endpoint: /generate-promotion-code <br>Parameter: address
+    note over B: Generate promotion code for user
+    B->>F: Return promotion code <br>Body: JSON object
+    F->>U: Display promotion code
+    note over U: User shares code to others
+    U->>F: Clicks 'Check Airdrop'
+    F->>B: Verify promotion code <br>Endpoint: /check-airdrop-amount <br>Parameters: address, step, promotionCode
+    note over B: Verify code and calculate airdrop
+    B->>S: Query airdrop amount <br>GET Endpoint: /transaction_count <br>Parameters: address, amount
+    note over S: Determine airdrop based on transactions
+    S->>B: Return airdrop amount <br>Body: JSON object
+    B->>F: Return airdrop amount <br>Body: JSON object
+    F->>U: Display airdrop amount
+    note over U: User passes check
+    U->>F: Clicks 'Confirm Airdrop'
+    F->>B: Confirm airdrop <br>GET Endpoint: /send-airdrop-parent <br>Parameters: address, step
+    note over B: Calculate final reward
+    B->>S: Request airdrop reward <br>GET Endpoint: /reward_parent <br>Parameters: address, amount
+    note over S: Process reward transaction
+    S->>B: Return transaction result <br>Body: JSON object
+    S-->>U: Send airdrop reward to user
+
+```
+
+### Explanation of the Twitter OAuth Diagram
+
 - **User (U)**: The end-user interacting with the frontend.
 - **Frontend (F)**: Your web application's frontend that interacts with the user and the backend.
 - **Backend (B)**: The server-side component that handles OAuth with Twitter, fetching tweets, and analyzing content.
 - **Twitter (T)**: The Twitter platform that handles OAuth and provides access to user tweets.
 
-### Steps:
+### Steps for Twitter OAuth
+
 1. **User Action**: The user clicks 'Log in with Twitter' on the frontend.
 2. **OAuth Start**: The frontend opens a new tab redirecting the user to the backend `/start-auth` endpoint with the callback URL.
 3. **OAuth Token Request**: The backend requests an OAuth token from Twitter.
@@ -68,18 +134,22 @@ This project implements a serverless function hosted within a Docker container t
 14. **Twitter Action Execution**: The backend makes API calls to Twitter to execute the actions (retweet, like, share).
 15. **Display Results**: The frontend displays the results of the actions to the user (success or failure).
 
-### Additional Details:
+### Additional Details
+
 - **Secure Token Handling**: The tokens are never exposed directly in the frontend code or stored insecurely. They are only transmitted using secure methods and stored temporarily as needed for making API requests.
 - **User Interaction and Experience**: The use of a popup window for OAuth ensures that the user does not navigate away from the original application, improving the user experience by keeping the context intact.
 - **Action Specificity**: By specifying that the user can perform actions such as retweeting, liking, and sharing directly after authentication, the steps reflect a more interactive and dynamic use of the Twitter API.
 - **Backend and Frontend Roles**: The delineation between backend and frontend responsibilities is made clear, emphasizing security and efficient data handling.
 
 ## Installation and Setup
+
 ### Setting Up Twitter API Keys
+
 1. Create a Twitter Developer account and an application to obtain your API keys.
 2. Set your `TWITTER_CONSUMER_KEY` and `TWITTER_CONSUMER_SECRET` as environment variables or securely store them for use in the application.
 
 ### Building the Docker Image
+
 1. Clone the repository:
    ```bash
    git clone https://github.com/BTI-US/Lotso-Twitter-Auth
@@ -172,6 +242,7 @@ Refer to the [Twitter API Rate Limiting](https://developer.twitter.com/en/docs/t
 5. Click 'Save'.
 
 ## Usage
+
 The application has the following endpoints:
 - `/start-auth`: Initiates the OAuth process.
 - `/twitter-callback`: Handles the callback from Twitter and exchanges the request token for an access token.
@@ -186,16 +257,18 @@ The application has the following endpoints:
 - `/check-bookmark`: Checks if a tweet has been bookmarked by the user.
 - `/check-airdrop`: Checks if user has claimed an airdrop.
 - `/log-airdrop`: Logs the airdrop claim.
-- `/check-airdrop-amount`: Checks the amount of airdrop claimed by the user.
+- `/check-airdrop-amount`: Checks the amount of airdrop available for the user.
 - `/generate-promotion-code`: Generates a promotion code for the user.
-- `/send-airdrop-parent`: Sends an airdrop to the parent user.
+- `/send-airdrop-parent`: Sends an airdrop to the parent user for rewards.
 
 Refer to the [API Documentation](docs/REST_API_Endpoints.md) for detailed information on each endpoint.
 
 ## Milestones
+
 - [x] Implement OAuth with Twitter.
 - [x] Basic functionality to interact with Twitter API.
 - [x] Use MongoDB to log each user's actions.
 
 ## License
+
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

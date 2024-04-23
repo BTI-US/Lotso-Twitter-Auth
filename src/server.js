@@ -566,7 +566,7 @@ app.get('/send-airdrop-parent', (req, res) => {
     if (!req.session) {
         return res.status(400).send("No session found");
     }
-    console.log("Endpoint hit: /check-airdrop-amount");
+    console.log("Endpoint hit: /send-airdrop-parent");
 
     if (req.session.accessToken && req.session.accessTokenSecret) {
         const { address, step } = req.query;
