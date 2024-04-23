@@ -26,6 +26,10 @@ services:
       AIRDROP_REWARD_RATIO: ${AIRDROP_REWARD_RATIO:-1.0}
       AIRDROP_CLAIM_AMOUNT: ${AIRDROP_CLAIM_AMOUNT:-25000}
       AIRDROP_REWARD_AMOUNT: ${AIRDROP_REWARD_AMOUNT:-1000}
+      AIRDROP_COUNT_ADDRESS: ${AIRDROP_COUNT_ADDRESS:-https://api.btiplatform.com/v1/info/transaction_count}
+      AIRDROP_REWARD_ADDRESS: ${AIRDROP_REWARD_ADDRESS:-https://api.btiplatform.com/v1/info/reward_parent}
+      WEBPAGE_ADDRESS: ${WEBPAGE_ADDRESS:-https://lotso.org}
+      AUTH_WEB_ADDRESS: ${AUTH_WEB_ADDRESS:-https://oauth.btiplatform.com}
     ports:
       - "${SERVER_PORT:-5000}:${SERVER_PORT:-5000}"
     depends_on:

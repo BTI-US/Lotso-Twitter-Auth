@@ -10,13 +10,18 @@ const axios = require('axios');
 const RedisStore = require('connect-redis').default;
 const utils = require('./function');
 
+const airdropCountAddress = process.env.AIRDROP_COUNT_ADDRESS || 'https://api.btiplatform.com/v1/info/transaction_count';
+const airdropRewardAddress = process.env.AIRDROP_REWARD_ADDRESS || 'https://api.btiplatform.com/v1/info/reward_parent';
+const webpageAddress = process.env.WEBPAGE_ADDRESS || 'https://lotso.org';
+const authWebAddress = process.env.AUTH_WEB_ADDRESS || 'https://oauth.btiplatform.com';
+
 const app = express();
 app.set('trust proxy', 1); // Trust the first proxy
 
 const redisClient = redis.createClient({
     socket: {
-        host: process.env.REDIS_HOST,
-        port: process.env.REDIS_PORT,
+        host: process.env.REDIS_HOST || 'redis',
+        port: process.env.REDIS_PORT || '6379',
     },
 });
 redisClient.connect();
@@ -99,6 +104,10 @@ app.use((req, res, next) => {
 });
 
 const { TWITTER_CONSUMER_KEY, TWITTER_CONSUMER_SECRET } = process.env;
+if (!TWITTER_CONSUMER_KEY || !TWITTER_CONSUMER_SECRET) {
+    console.error('Twitter consumer key and secret are required. Exiting...');
+    process.exit(1);
+}
 
 app.get('/start-auth', (req, res) => {    
     const oauth = new OAuth(
@@ -107,7 +116,7 @@ app.get('/start-auth', (req, res) => {
         TWITTER_CONSUMER_KEY,
         TWITTER_CONSUMER_SECRET,
         '1.0A',
-        'https://oauth.btiplatform.com/twitter-callback',
+        `${authWebAddress}/twitter-callback`,
         'HMAC-SHA1',
     );
 
@@ -132,7 +141,7 @@ app.get('/twitter-callback', (req, res) => {
         TWITTER_CONSUMER_KEY,
         TWITTER_CONSUMER_SECRET,
         '1.0A',
-        'https://oauth.btiplatform.com/twitter-callback',
+        `${authWebAddress}/twitter-callback`,
         'HMAC-SHA1',
     );
 
@@ -152,7 +161,7 @@ app.get('/twitter-callback', (req, res) => {
                 // Set a secure cookie for the session ID
                 res.cookie('session_id', req.sessionID, { httpOnly: true, secure: true, sameSite: 'None' });
                 // Redirect to the frontend with a session identifier
-                res.redirect('https://dev.lotso.org/auth-success.html');
+                res.redirect(`${webpageAddress}/auth-success.html`);
             }
         },
     );
@@ -487,8 +496,8 @@ app.get('/check-airdrop-amount', (req, res) => {
         if (promotionCode) {
             utils.usePromotionCode(address, promotionCode)
                 .then(result => {
-                    console.log('Promotion code appplied successful:', result);
-                    airdrop_amount *= parseInt(process.env.AIRDROP_REWARD_RATIO, 10);
+                    console.log('Promotion code applied successfully:', result);
+                    airdrop_amount *= parseFloat(process.env.AIRDROP_REWARD_RATIO);
                 })
                 .catch(error => {
                     console.error('Failed to apply promotion code:', error);
@@ -497,7 +506,7 @@ app.get('/check-airdrop-amount', (req, res) => {
             console.log("Promotion code not found");
         }
         // Perform a HTTP GET request
-        const apiUrl = `https://api.btiplatform.com/v1/info/transaction_count?address=${encodeURIComponent(address)}&amount=${encodeURIComponent(airdrop_amount)}`;
+        const apiUrl = `${airdropCountAddress}?address=${encodeURIComponent(address)}&amount=${encodeURIComponent(airdrop_amount)}`;
         axios.get(apiUrl)
             .then(response => {
                 // Axios will automatically parse the JSON response and wrap it into data property
@@ -578,7 +587,7 @@ app.get('/send-airdrop-parent', (req, res) => {
             .then(parentAddress => {
                 // Perform a HTTP GET request
                 const airdrop_amount = step * parseInt(process.env.AIRDROP_REWARD_AMOUNT, 10);
-                const apiUrl = `https://api.btiplatform.com/v1/info/reward_parent?address=${encodeURIComponent(parentAddress)}&amount=${encodeURIComponent(airdrop_amount)}`;
+                const apiUrl = `${airdropRewardAddress}?address=${encodeURIComponent(parentAddress)}&amount=${encodeURIComponent(airdrop_amount)}`;
                 axios.get(apiUrl)
                     .then(response => {
                         // Axios will automatically parse the JSON response and wrap it into data property

@@ -199,6 +199,13 @@ PRIVKEY_PATH=/etc/ssl/certs/privkey2.pem \
 HOST_CERT_FOLDER=/etc/letsencrypt/archive/btiplatform.com \
 CONTAINER_CERT_FOLDER=/etc/ssl/certs \
 REDIS_PORT=6000 \
+AIRDROP_REWARD_RATIO=1.0 \
+AIRDROP_CLAIM_AMOUNT=25000 \
+AIRDROP_REWARD_AMOUNT=1000 \
+AIRDROP_COUNT_ADDRESS=https://api.btiplatform.com/v1/info/transaction_count \
+AIRDROP_REWARD_ADDRESS=https://api.btiplatform.com/v1/info/reward_parent \
+WEBPAGE_ADDRESS=https://lotso.org \
+AUTH_WEB_ADDRESS=https://oauth.btiplatform.com \
 docker-compose up -d
 ```
 
@@ -217,6 +224,13 @@ PRIVKEY_PATH=/etc/ssl/certs/privkey2.pem \
 HOST_CERT_FOLDER=/etc/letsencrypt/archive/btiplatform.com \
 CONTAINER_CERT_FOLDER=/etc/ssl/certs \
 REDIS_PORT=6000 \
+AIRDROP_REWARD_RATIO=1.0 \
+AIRDROP_CLAIM_AMOUNT=25000 \
+AIRDROP_REWARD_AMOUNT=1000 \
+AIRDROP_COUNT_ADDRESS=https://api.btiplatform.com/v1/info/transaction_count \
+AIRDROP_REWARD_ADDRESS=https://api.btiplatform.com/v1/info/reward_parent \
+WEBPAGE_ADDRESS=https://lotso.org \
+AUTH_WEB_ADDRESS=https://oauth.btiplatform.com \
 docker-compose down
 ```
 
