@@ -30,7 +30,6 @@ export default [
       "no-console": "off",
       "spaced-comment": "off",
       "no-trailing-spaces": "off",
-      "no-else-return": "off",
       "no-multi-spaces": "off",
       "no-unused-vars": "off",
       "global-require": "off",
