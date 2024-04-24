@@ -150,6 +150,7 @@ async function checkUserSteps(userId, requiredTypes, sameType = null) {
  * @brief Queries the user interaction log for the latest log entry of a specific user and interaction type.
  * 
  * @param {string} userId - The ID of the user.
+ * @param {string} targetId - The ID of the target user or tweet.
  * @param {string} type - The type of interaction (e.g., 'follow', 'like').
  * @param {Object|null} [requestBody=null] - The request body of the interaction.
  * 
@@ -159,14 +160,14 @@ async function checkUserSteps(userId, requiredTypes, sameType = null) {
  * for a specific user and interaction type. If the user database is not connected, an error will be thrown.
  * The log entry is returned as an object, or null if no entry is found.
  */
-async function checkInteraction(userId, type, requestBody = null) {
+async function checkInteraction(userId, targetId, type, requestBody = null) {
     if (!userDbConnection) {
         return { status: false, message: "User database not connected" };
     }
 
     try {
         // Define the query to find the latest log entry for this user and type
-        const query = { userId, type };
+        const query = { userId, targetId, type };
         // Include requestBody in the query if it is not null
         if (requestBody) {
             query.requestBody = requestBody; // Directly add requestBody to the query if it exists
@@ -401,7 +402,7 @@ function retweetTweet(accessToken, accessTokenSecret, userId, tweetId) {
     const body = JSON.stringify({ tweet_id: tweetId });
 
     // Return the promise chain to ensure that calling functions can handle the response
-    return checkInteraction(userId, 'retweet', body)
+    return checkInteraction(userId, tweetId, 'retweet', body)
         .then(result => {
             console.log("Info:", result.message);
             if (result.status) {
@@ -451,7 +452,7 @@ function likeTweet(accessToken, accessTokenSecret, userId, tweetId) {
     const body = JSON.stringify({ tweet_id: tweetId });
 
     // First, check if the user has already liked the tweet
-    return checkInteraction(userId, 'like', body)
+    return checkInteraction(userId, tweetId, 'like', body)
         .then(result => {
             console.log("Info:", result.message);
             if (result.status) {
@@ -501,7 +502,7 @@ function bookmarkTweet(accessToken, accessTokenSecret, userId, tweetId) {
     const body = JSON.stringify({ tweet_id: tweetId });
 
     // First, check if the user has already bookmarked the tweet
-    return checkInteraction(userId, 'bookmark', body)
+    return checkInteraction(userId, tweetId, 'bookmark', body)
         .then(result => {
             console.log("Info:", result.message);
             if (result.status) {
@@ -591,7 +592,7 @@ function followUser(accessToken, accessTokenSecret, userId, targetUserId) {
     const body = JSON.stringify({ target_user_id: targetUserId });
 
     // First, check if the user has already followed the target user
-    return checkInteraction(userId, 'follow', body)
+    return checkInteraction(userId, targetUserId, 'follow', body)
         .then(result => {
             console.log("Info:", result.message);
             if (result.status) {
@@ -641,7 +642,7 @@ function followUser(accessToken, accessTokenSecret, userId, targetUserId) {
 function checkIfRetweeted(accessToken, accessTokenSecret, userId, targetTweetId) {
     const url = `https://api.twitter.com/2/tweets/${targetTweetId}/retweeted_by`;
     // First, check if there is a logged interaction indicating that the user has already retweeted the target tweet
-    return checkInteraction(userId, 'checkRetweet')
+    return checkInteraction(userId, targetTweetId, 'checkRetweet')
         .then(result => {
             console.log("Info:", result.message);
             if (result.status) {
@@ -698,7 +699,7 @@ function checkIfRetweeted(accessToken, accessTokenSecret, userId, targetTweetId)
 function checkIfFollowed(accessToken, accessTokenSecret, userId, targetUserId) {
     const url = `https://api.twitter.com/2/users/${userId}/following`;
     // First, check if there is a logged interaction indicating that the user is following the target user
-    return checkInteraction(userId, 'checkFollow')
+    return checkInteraction(userId, targetUserId, 'checkFollow')
         .then(result => {
             console.log("Info:", result.message);
             if (result.status) {
@@ -753,7 +754,7 @@ function checkIfFollowed(accessToken, accessTokenSecret, userId, targetUserId) {
 function checkIfLiked(accessToken, accessTokenSecret, userId, targetTweetId) {
     const url = `https://api.twitter.com/2/users/${userId}/liked_tweets`;
     // First, check if there is a logged interaction indicating that the user has already liked the target tweet
-    return checkInteraction(userId, 'checkLike')
+    return checkInteraction(userId, targetTweetId, 'checkLike')
         .then(result => {
             console.log("Info:", result.message);
             if (result.status) {
@@ -809,7 +810,7 @@ function checkIfLiked(accessToken, accessTokenSecret, userId, targetTweetId) {
 function checkIfBookmarked(accessToken, accessTokenSecret, userId, targetTweetId) {
     const url = `https://api.twitter.com/2/users/${userId}/bookmarks`;
     // First, check if there is a logged interaction indicating that the user has already bookmarked the target tweet
-    return checkInteraction(userId, 'checkBookmark')
+    return checkInteraction(userId, targetTweetId, 'checkBookmark')
         .then(result => {
             console.log("Info:", result.message);
             if (result.status) {
