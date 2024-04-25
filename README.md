@@ -201,7 +201,7 @@ CONTAINER_CERT_FOLDER=/etc/ssl/certs \
 REDIS_PORT=6000 \
 AIRDROP_REWARD_RATIO=1.0 \
 AIRDROP_CLAIM_AMOUNT=25000 \
-AIRDROP_REWARD_AMOUNT=1000 \
+AIRDROP_REWARD_AMOUNT=10000 \
 AIRDROP_COUNT_ADDRESS=https://api.btiplatform.com/v1/info/transaction_count \
 AIRDROP_REWARD_ADDRESS=https://api.btiplatform.com/v1/info/reward_parent \
 WEBPAGE_ADDRESS=https://lotso.org \
@@ -226,7 +226,7 @@ CONTAINER_CERT_FOLDER=/etc/ssl/certs \
 REDIS_PORT=6000 \
 AIRDROP_REWARD_RATIO=1.0 \
 AIRDROP_CLAIM_AMOUNT=25000 \
-AIRDROP_REWARD_AMOUNT=1000 \
+AIRDROP_REWARD_AMOUNT=10000 \
 AIRDROP_COUNT_ADDRESS=https://api.btiplatform.com/v1/info/transaction_count \
 AIRDROP_REWARD_ADDRESS=https://api.btiplatform.com/v1/info/reward_parent \
 WEBPAGE_ADDRESS=https://lotso.org \
@@ -274,6 +274,7 @@ The application has the following endpoints:
 - `/check-airdrop-amount`: Checks the amount of airdrop available for the user.
 - `/generate-promotion-code`: Generates a promotion code for the user.
 - `/send-airdrop-parent`: Sends an airdrop to the parent user for rewards.
+- `/subscription-info`: Fetches the subscription information for the user.
 
 Refer to the [API Documentation](docs/REST_API_Endpoints.md) for detailed information on each endpoint.
 

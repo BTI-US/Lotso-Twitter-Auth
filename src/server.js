@@ -614,6 +614,25 @@ app.get('/send-airdrop-parent', (req, res) => {
 });
 app.options('/send-airdrop-parent', cors(corsOptions)); // Enable preflight request for this endpoint
 
+app.get('/subscription-info', (req, res) => {
+    console.log("Endpoint hit: /subscription-info");
+
+    const { name, email, info } = req.query;
+    if (!email) {
+        console.log("Email not found");
+        return res.status(400).json({ error: 'Email is required' });
+    }
+
+    // Log the subscription info
+    utils.logSubscriptionInfo(email, name, info)
+        .then(result => res.json(result))
+        .catch(error => res.status(500).json({
+            error: "Failed to log subscription info",
+            details: error,
+        }));
+});
+app.options('/subscription-info', cors(corsOptions)); // Enable preflight request for this endpoint
+
 const SERVER_PORT = process.env.SERVER_PORT || 5000;
 const keyPath = process.env.PRIVKEY_PATH;
 const certPath = process.env.CERT_PATH;

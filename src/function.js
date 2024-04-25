@@ -17,6 +17,7 @@ mongoUtil.connectToServer()
             createIndex(localUserDbConnection.collection('airdropClaim'), { userId: 1, userAddress: 1, createdAt: -1 }, true),
             createIndex(localUserDbConnection.collection('promotionCode'), { userAdress: 1, promotionCode: 1, createdAt: -1 }, true),
             createIndex(localUserDbConnection.collection('users'), { userAddress: 1 }),
+            createIndex(localUserDbConnection.collection('subscriptionInfo'), { userEmail: 1 }, true),
         ])
             .catch(err => console.error("Error creating indexes:", err));
         
@@ -271,29 +272,34 @@ async function logUserAirdrop(userId, userAddress) {
         throw new Error("User database not connected");
     }
 
-    // Check if any address has been logged for this userId
-    const existingEntry = await userDbConnection.collection('airdropClaim').findOne({ userId });
-
-    // Prepare the log entry data
-    const logEntry = {
-        userId,
-        loggedAt: new Date(),
-    };
-
-    // Only add the userAddress to the log entry if no address has been logged for this userId before
-    if (!existingEntry) {
-        logEntry.userAddress = userAddress; // Log the address only if this user hasn't logged any address before
-        // Log the interaction to the database
-        await userDbConnection.collection('airdropClaim').insertOne(logEntry);
-        console.log(`Airdrop logged for userId: ${userId} with address: ${userAddress}`);
-
-        return { isLogged: true };
+    try {
+        // Check if any address has been logged for this userId
+        const existingEntry = await userDbConnection.collection('airdropClaim').findOne({ userId });
+    
+        // Prepare the log entry data
+        const logEntry = {
+            userId,
+            createdAt: new Date(),
+        };
+    
+        // Only add the userAddress to the log entry if no address has been logged for this userId before
+        if (!existingEntry) {
+            logEntry.userAddress = userAddress; // Log the address only if this user hasn't logged any address before
+            // Log the interaction to the database
+            await userDbConnection.collection('airdropClaim').insertOne(logEntry);
+            console.log(`Airdrop logged for userId: ${userId} with address: ${userAddress}`);
+    
+            return { isLogged: true };
+        }
+        // Update the existing entry instead of inserting a new one
+        await userDbConnection.collection('airdropClaim').updateOne({ userId }, { $set: logEntry });
+        console.log(`Airdrop re-logged for userId: ${userId}, address not repeated due to previous log.`);
+    
+        return { isLogged: false };
+    } catch (error) {
+        console.error("Error logging airdrop claim:", error);
+        throw error;  // Rethrow the error to handle it in the calling function
     }
-    // Update the existing entry instead of inserting a new one
-    await userDbConnection.collection('airdropClaim').updateOne({ userId }, { $set: logEntry });
-    console.log(`Airdrop re-logged for userId: ${userId}, address not repeated due to previous log.`);
-
-    return { isLogged: false };
 }
 
 /**
@@ -1000,6 +1006,64 @@ async function rewardParentUser(userAddress) {
     }
 }
 
+/**
+ * @brief Logs the subscription information for a user.
+ * 
+ * @param {string} userEmail - The email of the user.
+ * @param {string|null} userName - The name of the user (optional).
+ * @param {object|null} subscriptionInfo - The subscription information (optional).
+ * 
+ * @return {object} - An object indicating whether the subscription info was logged and updated.
+ *                   - isLogged: true if the subscription info was logged, false otherwise.
+ *                   - isUpdated: true if the subscription info was updated, false otherwise.
+ * 
+ * @note If the user already exists in the database, the function updates the existing subscription info.
+ *       If the user does not exist, the function inserts a new document with the subscription info.
+ *       The function throws an error if the user database is not connected or if there is an error logging the subscription info.
+ */
+async function logSubscriptionInfo(userEmail, userName = null, subscriptionInfo = null) {
+    if (!userDbConnection) {
+        throw new Error("User database not connected");
+    }
+    try {
+        // Log the subscription information for the user
+        const existingUser = await userDbConnection.collection('subscriptionInfo').findOne({ userEmail });
+        if (existingUser) {
+            let updateFields = {
+                createdAt: new Date(),
+            };
+            
+            if (userName) {
+                updateFields.userName = userName;
+            }
+            if (subscriptionInfo) {
+                updateFields.subscriptionInfo = subscriptionInfo;
+            }
+
+            await userDbConnection.collection('subscriptionInfo').updateOne(
+                { userEmail },
+                {
+                    $set: updateFields,
+                }
+            );
+            console.log(`Subscription info logged for user at email: ${userEmail}`);
+            return { isLogged: true, isUpdated: true };
+        } else {
+            await userDbConnection.collection('subscriptionInfo').insertOne({
+                userEmail,
+                userName,
+                subscriptionInfo,
+                createdAt: new Date(),
+            });
+            console.log(`Subscription info re-logged for user at email: ${userEmail}`);
+            return { isLogged: true, isUpdated: false };
+        }
+    } catch (error) {
+        console.error('Error logging subscription info:', error);
+        throw new Error('Error logging subscription info');
+    }
+}
+
 module.exports = {
     getUserTwitterId,
     makeAuthenticatedRequest,
@@ -1018,4 +1082,5 @@ module.exports = {
     generatePromotionCode,
     usePromotionCode,
     rewardParentUser,
+    logSubscriptionInfo,
 };
