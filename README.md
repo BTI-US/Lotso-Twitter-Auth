@@ -4,7 +4,7 @@
 [![CodeQL](https://github.com/BTI-US/Lotso-Twitter-Auth/actions/workflows/codeql.yml/badge.svg)](https://github.com/BTI-US/Lotso-Twitter-Auth/actions/workflows/codeql.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-- Last Modified: 2024-04-15
+- Last Modified: 2024-04-26
 - Author: Phill Weston
 
 ## Table of Contents
@@ -276,7 +276,7 @@ The application has the following endpoints:
 - `/send-airdrop-parent`: Sends an airdrop to the parent user for rewards.
 - `/subscription-info`: Fetches the subscription information for the user.
 
-Refer to the [API Documentation](docs/REST_API_Endpoints.md) for detailed information on each endpoint.
+Refer to the [API Documentation](https://github.com/BTI-US/Lotso-Twitter-Auth/wiki/REST_API_Endpoints) for detailed information on each endpoint.
 
 ## Milestones
 
