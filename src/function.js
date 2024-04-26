@@ -5,6 +5,27 @@ let dbConnection = null;
 let userDbConnection = null;
 
 /**
+ * @brief Removes duplicate documents from a collection based on specified fields.
+ * @param {Collection} collection - The MongoDB collection to remove duplicates from.
+ * @param {Object} fields - The fields to consider for identifying duplicates.
+ * @return {Promise<void>} - A promise that resolves when the duplicates are removed.
+ * @note This function uses the MongoDB aggregation framework to identify and remove duplicates.
+ */
+async function removeDuplicates(collection, fields) {
+    const groupFields = Object.fromEntries(Object.keys(fields).map(key => [key, `$${key}`]));
+
+    const duplicates = await collection.aggregate([
+        { $group: { _id: groupFields, count: { $sum: 1 }, dups: { $push: "$_id" } } },
+        { $match: { count: { $gt: 1 } } }
+    ]).toArray();
+
+    for (let i = 0; i < duplicates.length; i++) {
+        duplicates[i].dups.shift();      // First element skipped for deleting
+        await collection.deleteMany({ _id : {$in: duplicates[i].dups } });
+    }
+}
+
+/**
  * @brief Creates an index in a MongoDB collection based on the specified fields.
  * If an index with the same fields already exists, it will be dropped and recreated.
  *
@@ -30,18 +51,39 @@ async function createIndex(collection, fields, unique = false) {
         }
     }
 
+    if (unique) {
+        // Handle duplicates before creating a unique index
+        await removeDuplicates(collection, fields);
+    }
+
     return collection.createIndex(fields, { unique, name: indexName });
 }
 
+async function ensureCollectionExists(db, collectionName) {
+    const collections = await db.listCollections({ name: collectionName }, { nameOnly: true }).toArray();
+    if (collections.length === 0) {
+        await db.createCollection(collectionName);
+    }
+}
+
 mongoUtil.connectToServer()
-    .then(({ dbConnection: localDbConnection, userDbConnection: localUserDbConnection }) => {
+    .then(async ({ dbConnection: localDbConnection, userDbConnection: localUserDbConnection }) => {
         console.log("Successfully connected to MongoDB.");
         // Create indexes after ensuring the database connection is established
 
+        await Promise.all([
+            ensureCollectionExists(localUserDbConnection, 'twitterInteractions'),
+            ensureCollectionExists(localUserDbConnection, 'airdropClaim'),
+            ensureCollectionExists(localUserDbConnection, 'promotionCode'),
+            ensureCollectionExists(localUserDbConnection, 'users'),
+            ensureCollectionExists(localUserDbConnection, 'subscriptionInfo'),
+        ]);
+
         Promise.all([
+            // Enforce uniqueness on the userId field but allow multiple type values for each userId.
             createIndex(localUserDbConnection.collection('twitterInteractions'), { userId: 1, type: 1 }, true),
-            createIndex(localUserDbConnection.collection('airdropClaim'), { userId: 1, userAddress: 1, createdAt: -1 }, true),
-            createIndex(localUserDbConnection.collection('promotionCode'), { userAdress: 1, promotionCode: 1, createdAt: -1 }, true),
+            createIndex(localUserDbConnection.collection('airdropClaim'), { userAddress: 1 }, true),
+            createIndex(localUserDbConnection.collection('promotionCode'), { userAddress: 1 }, true),
             createIndex(localUserDbConnection.collection('users'), { userAddress: 1 }),
             createIndex(localUserDbConnection.collection('subscriptionInfo'), { userEmail: 1 }, true),
         ])
@@ -122,7 +164,7 @@ async function logUserInteraction(userId, targetId, type, url, requestBody, resp
     }
 
     // Define a filter to find the existing log entry for this user and type
-    const filter = { userId, type };
+    const filter = { userId, targetId, type };
 
     // Define the update operation to set the new log data
     const update = {
@@ -135,11 +177,18 @@ async function logUserInteraction(userId, targetId, type, url, requestBody, resp
 
 /**
  * @brief Checks if a user has completed specific check steps and met certain criteria.
+ * 
  * @param {string} userId - The ID of the user to check.
  * @param {string[]} requiredTypes - An array of required interaction types.
  * @param {string} sameType - The type of interaction to check for multiple occurrences.
+ * 
  * @return {boolean} - Returns true if the user has completed all required steps and met the criteria, otherwise false.
- * @note This function assumes that the userDbConnection is already established.
+ * 
+ * @note This function assumes that the userDbConnection is already established and connected to the user database.
+ * The function checks if the user has completed all the required interaction types specified in the 'requiredTypes' array.
+ * It also checks if the user has performed multiple occurrences of the same interaction type specified in the 'sameType' parameter.
+ * If the user has completed all the required steps and met the criteria, the function returns true.
+ * Otherwise, it returns false.
  */
 async function checkUserSteps(userId, requiredTypes, sameType = null) {
     if (!userDbConnection) {
@@ -195,10 +244,7 @@ async function checkInteraction(userId, targetId, type, requestBody = null) {
     try {
         // Define the query to find the latest log entry for this user and type
         const query = { userId, targetId, type };
-        // Include requestBody in the query if it is not null
-        if (requestBody) {
-            query.requestBody = requestBody; // Directly add requestBody to the query if it exists
-        }
+
         const options = {
             sort: { createdAt: -1 },  // Sort by creation date in descending order to get the most recent log
             limit: 1,  // Limit the result to only one document
@@ -437,7 +483,7 @@ function retweetTweet(accessToken, accessTokenSecret, userId, tweetId) {
     const body = JSON.stringify({ tweet_id: tweetId });
 
     // Return the promise chain to ensure that calling functions can handle the response
-    return checkInteraction(userId, tweetId, 'retweet', body)
+    return checkInteraction(userId, tweetId, 'retweet')
         .then(result => {
             console.log("Info:", result.message);
             if (result.status) {
@@ -487,7 +533,7 @@ function likeTweet(accessToken, accessTokenSecret, userId, tweetId) {
     const body = JSON.stringify({ tweet_id: tweetId });
 
     // First, check if the user has already liked the tweet
-    return checkInteraction(userId, tweetId, 'like', body)
+    return checkInteraction(userId, tweetId, 'like')
         .then(result => {
             console.log("Info:", result.message);
             if (result.status) {
@@ -537,7 +583,7 @@ function bookmarkTweet(accessToken, accessTokenSecret, userId, tweetId) {
     const body = JSON.stringify({ tweet_id: tweetId });
 
     // First, check if the user has already bookmarked the tweet
-    return checkInteraction(userId, tweetId, 'bookmark', body)
+    return checkInteraction(userId, tweetId, 'bookmark')
         .then(result => {
             console.log("Info:", result.message);
             if (result.status) {
@@ -631,7 +677,7 @@ function followUser(accessToken, accessTokenSecret, userId, targetUserId) {
     const body = JSON.stringify({ target_user_id: targetUserId });
 
     // First, check if the user has already followed the target user
-    return checkInteraction(userId, targetUserId, 'follow', body)
+    return checkInteraction(userId, targetUserId, 'follow')
         .then(result => {
             console.log("Info:", result.message);
             if (result.status) {
@@ -670,7 +716,7 @@ function followUser(accessToken, accessTokenSecret, userId, targetUserId) {
  * @param {string} userId - The ID of the user to check for retweets.
  * @param {string} targetTweetId - The ID of the tweet to check if retweeted.
  * 
- * @return {Promise<{retweeted: boolean}>} - A promise that resolves to an object containing the retweeted status.
+ * @return {Promise<{isRetweeted: boolean}>} - A promise that resolves to an object containing the retweeted status.
  * 
  * @note This function makes an authenticated request to the Twitter API to fetch the user's timeline tweets
  * and checks if any tweet is a retweet of the specified tweetId.
@@ -681,7 +727,7 @@ function followUser(accessToken, accessTokenSecret, userId, targetUserId) {
 function checkIfRetweeted(accessToken, accessTokenSecret, userId, targetTweetId) {
     const url = `https://api.twitter.com/2/tweets/${targetTweetId}/retweeted_by`;
     // First, check if there is a logged interaction indicating that the user has already retweeted the target tweet
-    return checkInteraction(userId, targetTweetId, 'checkRetweet')
+    return checkInteraction(userId, targetTweetId, 'retweet')
         .then(result => {
             console.log("Info:", result.message);
             if (result.status) {
@@ -703,7 +749,7 @@ function checkIfRetweeted(accessToken, accessTokenSecret, userId, targetTweetId)
                             const isRetweeted = response.data.some(tweet => tweet.id === userId);
                             if (isRetweeted) {
                                 // Log only if the tweet is retweeted
-                                await logUserInteraction(userId, targetTweetId, 'checkRetweet', url, null, response);
+                                await logUserInteraction(userId, targetTweetId, 'retweet', url, null, response);
                             }
                             return { isRetweeted };
                         }
@@ -742,7 +788,7 @@ function checkIfRetweeted(accessToken, accessTokenSecret, userId, targetTweetId)
 function checkIfFollowed(accessToken, accessTokenSecret, userId, targetUserId) {
     const url = `https://api.twitter.com/2/users/${userId}/following`;
     // First, check if there is a logged interaction indicating that the user is following the target user
-    return checkInteraction(userId, targetUserId, 'checkFollow')
+    return checkInteraction(userId, targetUserId, 'follow')
         .then(result => {
             console.log("Info:", result.message);
             if (result.status) {
@@ -763,7 +809,7 @@ function checkIfFollowed(accessToken, accessTokenSecret, userId, targetUserId) {
                             // Check through the list of followed users to see if targetUserId is one of them
                             const isFollowing = response.data.some(user => user.id === targetUserId);
                             if (isFollowing) {
-                                await logUserInteraction(userId, targetUserId, 'checkFollow', url, null, response);
+                                await logUserInteraction(userId, targetUserId, 'follow', url, null, response);
                             }
                             return { isFollowing };
                         }
@@ -794,14 +840,14 @@ function checkIfFollowed(accessToken, accessTokenSecret, userId, targetUserId) {
  * @param {string} userId - The ID of the user to check if liked the tweet.
  * @param {string} targetTweetId - The ID of the tweet to check if liked.
  * 
- * @return {Promise<{ hasLiked: boolean }>} - A promise that resolves to an object containing the result of the check.
+ * @return {Promise<{ isLiked: boolean }>} - A promise that resolves to an object containing the result of the check.
  * @note This function makes an authenticated request to the Twitter API to fetch the user's liked tweets and checks if any of them match the specified tweetId.
  * Reference: https://developer.twitter.com/en/docs/twitter-api/tweets/likes/api-reference/get-users-id-liked_tweets
  */
 function checkIfLiked(accessToken, accessTokenSecret, userId, targetTweetId) {
     const url = `https://api.twitter.com/2/users/${userId}/liked_tweets`;
     // First, check if there is a logged interaction indicating that the user has already liked the target tweet
-    return checkInteraction(userId, targetTweetId, 'checkLike')
+    return checkInteraction(userId, targetTweetId, 'like')
         .then(result => {
             console.log("Info:", result.message);
             if (result.status) {
@@ -822,7 +868,7 @@ function checkIfLiked(accessToken, accessTokenSecret, userId, targetTweetId) {
                             // Check through the list of liked tweets to see if targetTweetId is one of them
                             const isLiked = response.data.some(tweet => tweet.id === targetTweetId);
                             if (isLiked) {
-                                await logUserInteraction(userId, targetTweetId, 'checkLike', url, null, response);
+                                await logUserInteraction(userId, targetTweetId, 'like', url, null, response);
                             }
                             return { isLiked };
                         }
@@ -861,7 +907,7 @@ function checkIfLiked(accessToken, accessTokenSecret, userId, targetTweetId) {
 function checkIfBookmarked(accessToken, accessTokenSecret, userId, targetTweetId) {
     const url = `https://api.twitter.com/2/users/${userId}/bookmarks`;
     // First, check if there is a logged interaction indicating that the user has already bookmarked the target tweet
-    return checkInteraction(userId, targetTweetId, 'checkBookmark')
+    return checkInteraction(userId, targetTweetId, 'bookmark')
         .then(result => {
             console.log("Info:", result.message);
             if (result.status) {
@@ -882,7 +928,7 @@ function checkIfBookmarked(accessToken, accessTokenSecret, userId, targetTweetId
                             // Check through the list of bookmarks to see if targetTweetId is one of them
                             const isBookmarked = response.data.some(tweet => tweet.id === targetTweetId);
                             if (isBookmarked) {
-                                await logUserInteraction(userId, targetTweetId, 'checkBookmark', url, null, response);
+                                await logUserInteraction(userId, targetTweetId, 'bookmark', url, null, response);
                             }
                             return { isBookmarked };
                         }
@@ -917,11 +963,11 @@ function checkIfBookmarked(accessToken, accessTokenSecret, userId, targetTweetId
  * If there is an error during the process, the promise is rejected with the error.
  */
 function checkIfFinished(userId) {
-    // Note: checkFollow is not included in the requiredTypes array
-    const requiredTypes = ["checkLike", "checkRetweet", "checkBookmark"];
+    // Note: `follow` is not included in the requiredTypes array
+    const requiredTypes = ["like", "retweet", "bookmark"];
 
     // Check if the user has completed all required check procedures
-    return checkUserSteps(userId, requiredTypes, "checkRetweet")
+    return checkUserSteps(userId, requiredTypes, "retweet")
         .then(hasAllInteractions => {
             if (hasAllInteractions) {
                 console.log("User has all required interaction types.");
@@ -1078,10 +1124,10 @@ async function logSubscriptionInfo(userEmail, userName = null, subscriptionInfo 
         // Log the subscription information for the user
         const existingUser = await userDbConnection.collection('subscriptionInfo').findOne({ userEmail });
         if (existingUser) {
-            let updateFields = {
+            const updateFields = {
                 createdAt: new Date(),
             };
-            
+
             if (userName) {
                 updateFields.userName = userName;
             }
@@ -1093,20 +1139,20 @@ async function logSubscriptionInfo(userEmail, userName = null, subscriptionInfo 
                 { userEmail },
                 {
                     $set: updateFields,
-                }
+                },
             );
             console.log(`Subscription info logged for user at email: ${userEmail}`);
             return { isLogged: true, isUpdated: true };
-        } else {
-            await userDbConnection.collection('subscriptionInfo').insertOne({
-                userEmail,
-                userName,
-                subscriptionInfo,
-                createdAt: new Date(),
-            });
-            console.log(`Subscription info re-logged for user at email: ${userEmail}`);
-            return { isLogged: true, isUpdated: false };
         }
+
+        await userDbConnection.collection('subscriptionInfo').insertOne({
+            userEmail,
+            userName,
+            subscriptionInfo,
+            createdAt: new Date(),
+        });
+        console.log(`Subscription info re-logged for user at email: ${userEmail}`);
+        return { isLogged: true, isUpdated: false };
     } catch (error) {
         console.error('Error logging subscription info:', error);
         throw new Error('Error logging subscription info');

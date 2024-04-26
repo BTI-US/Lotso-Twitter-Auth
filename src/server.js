@@ -321,9 +321,21 @@ app.get('/retweet', (req, res) => {
         utils.getUserTwitterId(req.session.accessToken, req.session.accessTokenSecret)
             .then(userId => {
                 console.log("Current User ID is:", userId);
-                // With the user ID, proceed to retweet the specified tweet
-                utils.retweetTweet(req.session.accessToken, req.session.accessTokenSecret, userId, tweetId)
-                    .then(response => res.json(response))
+                // Check if the tweet has been retweeted by the user
+                utils.checkIfRetweeted(req.session.accessToken, req.session.accessTokenSecret, userId, tweetId)
+                    .then(result => {
+                        if (result.isRetweeted) {
+                            console.log("Tweet has been retweeted before");
+                            return res.json({ status: 'success', message: 'Tweet has been retweeted before' });
+                        }
+                        // With the user ID, proceed to retweet the specified tweet
+                        utils.retweetTweet(req.session.accessToken, req.session.accessTokenSecret, userId, tweetId)
+                            .then(response => res.json(response))
+                            .catch(error => {
+                                const statusCode = error.statusCode || 500;
+                                res.status(statusCode).json({ error: error.toString() });
+                            });
+                    })
                     .catch(error => {
                         const statusCode = error.statusCode || 500;
                         res.status(statusCode).json({ error: error.toString() });
@@ -352,9 +364,21 @@ app.get('/like', (req, res) => {
         // Fetch the user ID from the username
         utils.getUserTwitterId(req.session.accessToken, req.session.accessTokenSecret)
             .then(userId => {
-                // Use the userId to like the tweet
-                utils.likeTweet(req.session.accessToken, req.session.accessTokenSecret, userId, tweetId)
-                    .then(response => res.json(response))
+                // Check if the tweet has been liked by the user
+                utils.checkIfLiked(req.session.accessToken, req.session.accessTokenSecret, userId, tweetId)
+                    .then(result => {
+                        if (result.isLiked) {
+                            console.log("Tweet has been liked before");
+                            return res.json({ status: 'success', message: 'Tweet has been liked before' });
+                        }
+                        // Use the userId to like the tweet
+                        utils.likeTweet(req.session.accessToken, req.session.accessTokenSecret, userId, tweetId)
+                            .then(response => res.json(response))
+                            .catch(error => {
+                                const statusCode = error.statusCode || 500;
+                                res.status(statusCode).json({ error: error.toString() });
+                            });
+                    })
                     .catch(error => {
                         const statusCode = error.statusCode || 500;
                         res.status(statusCode).json({ error: error.toString() });
@@ -383,9 +407,21 @@ app.get('/bookmark', (req, res) => {
         // Fetch the user ID from the username
         utils.getUserTwitterId(req.session.accessToken, req.session.accessTokenSecret)
             .then(userId => {
-                // Use the userId to bookmark the tweet
-                utils.bookmarkTweet(req.session.accessToken, req.session.accessTokenSecret, userId, tweetId)
-                    .then(response => res.json(response))
+                // Check if the tweet has been bookmarked by the user
+                utils.checkIfBookmarked(req.session.accessToken, req.session.accessTokenSecret, userId, tweetId)
+                    .then(result => {
+                        if (result.isBookmarked) {
+                            console.log("Tweet has been bookmarked before");
+                            return res.json({ status: 'success', message: 'Tweet has been bookmarked before' });
+                        }
+                        // Use the userId to bookmark the tweet
+                        utils.bookmarkTweet(req.session.accessToken, req.session.accessTokenSecret, userId, tweetId)
+                            .then(response => res.json(response))
+                            .catch(error => {
+                                const statusCode = error.statusCode || 500;
+                                res.status(statusCode).json({ error: error.toString() });
+                            });
+                    })
                     .catch(error => {
                         const statusCode = error.statusCode || 500;
                         res.status(statusCode).json({ error: error.toString() });
