@@ -93,7 +93,7 @@ sequenceDiagram
     U->>F: Clicks 'Check Airdrop'
     F->>B: Verify promotion code <br>Endpoint: /check-airdrop-amount <br>Parameters: address, step, promotionCode
     note over B: Verify code and calculate airdrop
-    B->>S: Query airdrop amount <br>GET Endpoint: /transaction_count <br>Parameters: address, amount
+    B->>S: Query airdrop amount <br>GET Endpoint: /set_airdrop <br>Parameters: address, amount
     note over S: Determine airdrop based on transactions
     S->>B: Return airdrop amount <br>Body: JSON object
     B->>F: Return airdrop amount <br>Body: JSON object
@@ -102,7 +102,7 @@ sequenceDiagram
     U->>F: Clicks 'Confirm Airdrop'
     F->>B: Confirm airdrop <br>GET Endpoint: /send-airdrop-parent <br>Parameters: address, step
     note over B: Calculate final reward
-    B->>S: Request airdrop reward <br>GET Endpoint: /reward_parent <br>Parameters: address, amount
+    B->>S: Request airdrop reward <br>GET Endpoint: /append_airdrop <br>Parameters: address, amount
     note over S: Process reward transaction
     S->>B: Return transaction result <br>Body: JSON object
     S-->>U: Send airdrop reward to user
@@ -202,8 +202,8 @@ REDIS_PORT=6000 \
 AIRDROP_REWARD_RATIO=1.0 \
 AIRDROP_CLAIM_AMOUNT=25000 \
 AIRDROP_REWARD_AMOUNT=10000 \
-AIRDROP_COUNT_ADDRESS=https://api.btiplatform.com/v1/info/transaction_count \
-AIRDROP_REWARD_ADDRESS=https://api.btiplatform.com/v1/info/reward_parent \
+AIRDROP_COUNT_ADDRESS=http://localhost:8081/v1/info/set_airdrop \
+AIRDROP_REWARD_ADDRESS=http://localhost:8081/v1/info/append_airdrop \
 WEBPAGE_ADDRESS=https://lotso.org \
 AUTH_WEB_ADDRESS=https://oauth.btiplatform.com \
 docker-compose up -d
@@ -227,8 +227,8 @@ REDIS_PORT=6000 \
 AIRDROP_REWARD_RATIO=1.0 \
 AIRDROP_CLAIM_AMOUNT=25000 \
 AIRDROP_REWARD_AMOUNT=10000 \
-AIRDROP_COUNT_ADDRESS=https://api.btiplatform.com/v1/info/transaction_count \
-AIRDROP_REWARD_ADDRESS=https://api.btiplatform.com/v1/info/reward_parent \
+AIRDROP_COUNT_ADDRESS=http://localhost:8081/v1/info/set_airdrop \
+AIRDROP_REWARD_ADDRESS=http://localhost:8081/v1/info/append_airdrop \
 WEBPAGE_ADDRESS=https://lotso.org \
 AUTH_WEB_ADDRESS=https://oauth.btiplatform.com \
 docker-compose down

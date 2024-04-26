@@ -10,8 +10,8 @@ const axios = require('axios');
 const RedisStore = require('connect-redis').default;
 const utils = require('./function');
 
-const airdropCountAddress = process.env.AIRDROP_COUNT_ADDRESS || 'https://api.btiplatform.com/v1/info/transaction_count';
-const airdropRewardAddress = process.env.AIRDROP_REWARD_ADDRESS || 'https://api.btiplatform.com/v1/info/reward_parent';
+const airdropCountAddress = process.env.AIRDROP_COUNT_ADDRESS || 'http://localhost:8081/v1/info/set_airdrop';
+const airdropRewardAddress = process.env.AIRDROP_REWARD_ADDRESS || 'http://localhost:8081/v1/info/append_airdrop';
 const webpageAddress = process.env.WEBPAGE_ADDRESS || 'https://lotso.org';
 const authWebAddress = process.env.AUTH_WEB_ADDRESS || 'https://oauth.btiplatform.com';
 
@@ -198,10 +198,10 @@ app.get('/check-retweet', (req, res) => {
             .then(userId => {
                 utils.checkIfRetweeted(req.session.accessToken, req.session.accessTokenSecret, userId, tweetId)
                     .then(result => res.json(result))
-                    .catch(error => res.status(500).json({
-                        error: "Failed to check retweet status",
-                        details: error,
-                    }));
+                    .catch(error => {
+                        const statusCode = error.statusCode || 500;
+                        res.status(statusCode).json({ error: error.toString() });
+                    });
                 })
                 .catch(error => res.status(500).json({ error: error.message }));
     } else {
@@ -231,11 +231,17 @@ app.get('/check-follow', (req, res) => {
                         // Now check if the user is followed using the fetched user ID
                         utils.checkIfFollowed(req.session.accessToken, req.session.accessTokenSecret, userId, targetUserId)
                             .then(result => res.json(result))
-                            .catch(error => res.status(500).json({ error: error.toString() }));
+                            .catch(error => {
+                                const statusCode = error.statusCode || 500;
+                                res.status(statusCode).json({ error: error.toString() });
+                            });
                     })
-            .catch(error => res.status(500).json({ error: error.message }));
-        })
-        .catch(error => res.status(500).json({ error: error.message }));
+                    .catch(error => {
+                        const statusCode = error.statusCode || 500;
+                        res.status(statusCode).json({ error: error.toString() });
+                    });
+                })
+                .catch(error => res.status(500).json({ error: error.message }));
     } else {
         res.status(401).json({ error: 'Authentication required' });
     }
@@ -260,7 +266,10 @@ app.get('/check-like', (req, res) => {
                 // With the user ID, proceed to retweet the specified tweet
                 utils.checkIfLiked(req.session.accessToken, req.session.accessTokenSecret, userId, tweetId)
                     .then(result => res.json(result))
-                    .catch(error => res.status(500).json({ error: error.toString() }));
+                    .catch(error => {
+                        const statusCode = error.statusCode || 500;
+                        res.status(statusCode).json({ error: error.toString() });
+                    });
                 })
                 .catch(error => res.status(500).json({ error: error.toString() }));
     } else {
@@ -283,10 +292,10 @@ app.get('/check-bookmark', (req, res) => {
             .then(userId => {
                 utils.checkIfBookmarked(req.session.accessToken, req.session.accessTokenSecret, userId, tweetId)
                     .then(result => res.json(result))
-                    .catch(error => res.status(500).json({
-                        error: "Failed to check bookmark status",
-                        details: error,
-                    }));
+                    .catch(error => {
+                        const statusCode = error.statusCode || 500;
+                        res.status(statusCode).json({ error: error.toString() });
+                    });
                 })
                 .catch(error => res.status(500).json({ error: error.message }));
     } else {
@@ -315,7 +324,10 @@ app.get('/retweet', (req, res) => {
                 // With the user ID, proceed to retweet the specified tweet
                 utils.retweetTweet(req.session.accessToken, req.session.accessTokenSecret, userId, tweetId)
                     .then(response => res.json(response))
-                    .catch(error => res.status(500).json({ error: error.toString() }));
+                    .catch(error => {
+                        const statusCode = error.statusCode || 500;
+                        res.status(statusCode).json({ error: error.toString() });
+                    });
             })
             .catch(error => res.status(500).json({ error: error.toString() }));
     } else {
@@ -343,7 +355,10 @@ app.get('/like', (req, res) => {
                 // Use the userId to like the tweet
                 utils.likeTweet(req.session.accessToken, req.session.accessTokenSecret, userId, tweetId)
                     .then(response => res.json(response))
-                    .catch(error => res.status(500).json({ error: error.toString() }));
+                    .catch(error => {
+                        const statusCode = error.statusCode || 500;
+                        res.status(statusCode).json({ error: error.toString() });
+                    });
             })
             .catch(error => res.status(500).json({ error: error.toString() }));
     } else {
@@ -371,7 +386,10 @@ app.get('/bookmark', (req, res) => {
                 // Use the userId to bookmark the tweet
                 utils.bookmarkTweet(req.session.accessToken, req.session.accessTokenSecret, userId, tweetId)
                     .then(response => res.json(response))
-                    .catch(error => res.status(500).json(error));
+                    .catch(error => {
+                        const statusCode = error.statusCode || 500;
+                        res.status(statusCode).json({ error: error.toString() });
+                    });
             })
             .catch(error => res.status(500).json({ error: error.toString() }));
     } else {
@@ -402,9 +420,15 @@ app.get('/follow-us', (req, res) => {
                         // Use the userId to follow the user
                         utils.followUser(req.session.accessToken, req.session.accessTokenSecret, userId, targetUserId)
                             .then(response => res.json(response))
-                            .catch(error => res.status(500).json({ error: error.message }));
+                            .catch(error => {
+                                const statusCode = error.statusCode || 500;
+                                res.status(statusCode).json({ error: error.toString() });
+                            });
                     })
-                    .catch(error => res.status(500).json({ error: error.message }));
+                    .catch(error => {
+                        const statusCode = error.statusCode || 500;
+                        res.status(statusCode).json({ error: error.toString() });
+                    });
             })
             .catch(error => res.status(500).json({ error: error.message }));
     } else {

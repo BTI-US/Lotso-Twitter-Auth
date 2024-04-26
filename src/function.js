@@ -4,13 +4,39 @@ const mongoUtil = require('./db');
 let dbConnection = null;
 let userDbConnection = null;
 
+/**
+ * @brief Creates an index in a MongoDB collection based on the specified fields.
+ * If an index with the same fields already exists, it will be dropped and recreated.
+ *
+ * @param {Collection} collection - The MongoDB collection to create the index in.
+ * @param {Object} fields - The fields to create the index on.
+ * @param {boolean} [unique=false] - Optional. Specifies whether the index should enforce uniqueness.
+ * @return {Promise<void>} - A promise that resolves when the index is created or already exists.
+ * @note This function assumes that the MongoDB collection has been properly initialized and connected.
+ */
+async function createIndex(collection, fields, unique = false) {
+    const indexName = Object.keys(fields).join('_');
+    const indexes = await collection.listIndexes().toArray();
+
+    const existingIndex = indexes.find(index => JSON.stringify(index.key) === JSON.stringify(fields));
+
+    if (existingIndex) {
+        if (existingIndex.name !== indexName) {
+            // Drop the existing index if it has a different name
+            await collection.dropIndex(existingIndex.name);
+        } else {
+            // If the existing index has the same name, no need to create it again
+            return;
+        }
+    }
+
+    return collection.createIndex(fields, { unique, name: indexName });
+}
+
 mongoUtil.connectToServer()
     .then(({ dbConnection: localDbConnection, userDbConnection: localUserDbConnection }) => {
         console.log("Successfully connected to MongoDB.");
         // Create indexes after ensuring the database connection is established
-        const createIndex = (collection, index, unique = false) => collection.createIndex(index, { unique })
-            .then(() => console.log(`Index created successfully on ${collection.collectionName}`))
-            .catch(err => console.error(`Error creating index on ${collection.collectionName}:`, err));
 
         Promise.all([
             createIndex(localUserDbConnection.collection('twitterInteractions'), { userId: 1, type: 1 }, true),
@@ -332,8 +358,8 @@ function makeAuthenticatedRequest(accessToken, accessTokenSecret, method, url, b
                 console.error("Error response:", error); // Log the full error
                 reject(error);
             } else {
-                console.log("Successful response data:", data);
-                console.log("Full response object:", response); // Log the full response object
+                // console.log("Successful response data:", data);
+                // console.log("Full response object:", response);
                 try {
                     resolve(JSON.parse(data));
                 } catch (parseError) {
@@ -380,7 +406,10 @@ function getUserTwitterId(accessToken, accessTokenSecret) {
     // Using the modified makeAuthenticatedRequest to handle the GET request
     return makeAuthenticatedRequest(accessToken, accessTokenSecret, 'GET', url)
         .then(parsedData => {
-            console.log("Parsed data:", parsedData);
+            // console.log("Parsed data:", parsedData);
+            if (!parsedData.id_str) {
+                throw new Error("User ID not found in response data.");
+            }
             return parsedData.id_str;  // Returns the string version of the user's ID
         })
         .catch(error => {
@@ -563,6 +592,10 @@ function fetchUserId(username, accessToken, accessTokenSecret) {
                 console.error(`Failed to fetch user ID, Error: ${errorDetails.detail}`);
                 throw new Error(`Failed to fetch user ID, Error: ${errorDetails.detail}`);
             } else {
+                if (!response.data.id) {
+                    console.error("User ID not found in response data.");
+                    throw new Error("User ID not found in response data.");
+                }
                 // Log the successful API request
                 await logTwitterInteraction(response.data.id, 'fetchUserId', url, null, response);
             }
@@ -662,6 +695,10 @@ function checkIfRetweeted(accessToken, accessTokenSecret, userId, targetTweetId)
                         // Log the successful API request
                         await logTwitterInteraction(userId, 'checkRetweet', url, null, response);
                         if (response.data && response.data.length > 0) {
+                            if (!Array.isArray(response.data) || !response.data.every(item => 'id' in item)) {
+                                console.error("User ID not found in response data.");
+                                return { isRetweeted: false };
+                            }
                             // Check through the list of tweets to see if targetTweetId is one of them
                             const isRetweeted = response.data.some(tweet => tweet.id === userId);
                             if (isRetweeted) {
@@ -719,6 +756,10 @@ function checkIfFollowed(accessToken, accessTokenSecret, userId, targetUserId) {
                         // Log the successful API request
                         await logTwitterInteraction(userId, 'checkFollow', url, null, response);
                         if (response.data && response.data.length > 0) {
+                            if (!Array.isArray(response.data) || !response.data.every(item => 'id' in item)) {
+                                console.error("User ID not found in response data.");
+                                return { isFollowing: false };
+                            }
                             // Check through the list of followed users to see if targetUserId is one of them
                             const isFollowing = response.data.some(user => user.id === targetUserId);
                             if (isFollowing) {
@@ -774,6 +815,10 @@ function checkIfLiked(accessToken, accessTokenSecret, userId, targetTweetId) {
                         // Log the successful API request
                         await logTwitterInteraction(userId, 'checkLike', url, null, response);
                         if (response.data && response.data.length > 0) {
+                            if (!Array.isArray(response.data) || !response.data.every(item => 'id' in item)) {
+                                console.error("User ID not found in response data.");
+                                return { isLiked: false };
+                            }
                             // Check through the list of liked tweets to see if targetTweetId is one of them
                             const isLiked = response.data.some(tweet => tweet.id === targetTweetId);
                             if (isLiked) {
@@ -830,6 +875,10 @@ function checkIfBookmarked(accessToken, accessTokenSecret, userId, targetTweetId
                         // Log the successful API request
                         await logTwitterInteraction(userId, 'checkBookmark', url, null, response);
                         if (response.data && response.data.length > 0) {
+                            if (!Array.isArray(response.data) || !response.data.every(item => 'id' in item)) {
+                                console.error("User ID not found in response data.");
+                                return { isBookmarked: false };
+                            }
                             // Check through the list of bookmarks to see if targetTweetId is one of them
                             const isBookmarked = response.data.some(tweet => tweet.id === targetTweetId);
                             if (isBookmarked) {
