@@ -58,7 +58,7 @@ sequenceDiagram
     F->>B: Redirect to /start-auth with callback URL in a new tab
     B->>T: Request OAuth token
     T-->>B: OAuth token
-    B->>U: Redirect to Twitter auth URL
+    B-->>U: Redirect to Twitter auth URL
     U->>T: Log in & authorize
     T-->>U: Redirect to callback URL
     U->>B: /callback with OAuth verifier
@@ -67,8 +67,8 @@ sequenceDiagram
     B-->>U: Pass tokens to frontend via postMessage
     note right of F: Close the authentication tab
     F-->>F: Store tokens in session storage (redis)
-    U->>F: Clicks 'Retweet', 'Like', 'Bookmark', or 'Follow'
-    F->>B: Send action request (/retweet, /like, /bookmark, /follow) with access token
+    U->>F: Clicks 'Retweet', 'Retweet-2', 'Like', or 'Follow'
+    F->>B: Send action request (/retweet, /like, /follow) with access token
     B->>T: Perform requested action using access token
     T-->>B: Action response
     B-->>F: Respond back to frontend with result
@@ -84,29 +84,35 @@ sequenceDiagram
     participant B as Backend
     participant S as Airdrop Server
 
-    U->>F: Finished 4 missions <br>Clicks 'Claim Airdrop'
+    U->>F: Finished required missions <br>Clicks 'Claim Airdrop'
+    F->>B: Check airdrop eligibility <br>GET Endpoint: /check-airdrop <br>Parameter: address
+    note over B: Check if user is eligible
+    B->>S: Query airdrop eligibility <br>GET Endpoint: /check_eligibility <br>Parameter: address
+    S-->>B: Return eligibility status <br>Body: JSON object
+    B-->>F: Query airdrop eligibility <br>Body: JSON object
+    F-->>U: Display result <br>(Rejected if not eligible)
     F->>B: Request promotion code <br>GET Endpoint: /generate-promotion-code <br>Parameter: address
     note over B: Generate promotion code for user
-    B->>F: Return promotion code <br>Body: JSON object
+    B-->>F: Return promotion code <br>Body: JSON object
     F->>U: Display promotion code
-    note over U: User shares code to others
+
+    note over U: User shares code if eligible
     U->>F: Clicks 'Check Airdrop'
     F->>B: Verify promotion code <br>Endpoint: /check-airdrop-amount <br>Parameters: address, step, promotionCode
     note over B: Verify code and calculate airdrop
     B->>S: Query airdrop amount <br>GET Endpoint: /set_airdrop <br>Parameters: address, amount
     note over S: Determine airdrop based on transactions
     S->>B: Return airdrop amount <br>Body: JSON object
-    B->>F: Return airdrop amount <br>Body: JSON object
-    F->>U: Display airdrop amount
-    note over U: User passes check
+    B-->>F: Return airdrop amount <br>Body: JSON object
+    F-->>U: Display airdrop amount
+
     U->>F: Clicks 'Confirm Airdrop'
     F->>B: Confirm airdrop <br>GET Endpoint: /send-airdrop-parent <br>Parameters: address, step
     note over B: Calculate final reward
     B->>S: Request airdrop reward <br>GET Endpoint: /append_airdrop <br>Parameters: address, amount
     note over S: Process reward transaction
-    S->>B: Return transaction result <br>Body: JSON object
+    S-->>B: Return transaction result <br>Body: JSON object
     S-->>U: Send airdrop reward to user
-
 ```
 
 ### Explanation of the Twitter OAuth Diagram
@@ -116,7 +122,7 @@ sequenceDiagram
 - **Backend (B)**: The server-side component that handles OAuth with Twitter, fetching tweets, and analyzing content.
 - **Twitter (T)**: The Twitter platform that handles OAuth and provides access to user tweets.
 
-### Steps for Twitter OAuth
+### Steps for Twitter OAuth (Frontend)
 
 1. **User Action**: The user clicks 'Log in with Twitter' on the frontend.
 2. **OAuth Start**: The frontend opens a new tab redirecting the user to the backend `/start-auth` endpoint with the callback URL.
@@ -128,11 +134,34 @@ sequenceDiagram
 8. **Access Token Request**: The backend requests an access token from Twitter using the verifier.
 9. **Twitter Provides Tokens**: Twitter sends the access token and secret back to the backend.
 10. **Token Passing**: The backend passes the tokens to the frontend via `postMessage`, and the popup window is closed.
-11. **Token Storage**: The frontend securely stores the tokens in session storage or variables.
+11. **Token Storage**: The frontend securely stores the tokens in session storage.
 12. **User Actions**: The user performs actions such as 'Retweet', 'Like', or 'Share' via the frontend interface.
 13. **Action Requests**: The frontend sends requests to the backend to perform the selected actions using the stored access tokens.
 14. **Twitter Action Execution**: The backend makes API calls to Twitter to execute the actions (retweet, like, share).
 15. **Display Results**: The frontend displays the results of the actions to the user (success or failure).
+
+### Steps for Airdrop Sequence Diagram
+
+1. **User Action**: The user completes the required missions and clicks 'Claim Airdrop' on the frontend.
+2. **Eligibility Check**: The frontend sends a GET request to the backend `/check-airdrop` endpoint with the user's address as a parameter.
+3. **Backend Processing**: The backend checks if the user is eligible for the airdrop.
+4. **Airdrop Server Query**: The backend sends a GET request to the Airdrop Server `/check_eligibility` endpoint with the user's address as a parameter.
+5. **Eligibility Status**: The Airdrop Server returns the eligibility status to the backend, which then forwards it to the frontend.
+6. **Display Result**: The frontend displays the result to the user. If the user is not eligible, the process ends here.
+7. **Promotion Code Request**: If the user is eligible, the frontend sends a GET request to the backend `/generate-promotion-code` endpoint with the user's address as a parameter.
+8. **Promotion Code Generation**: The backend generates a promotion code for the user and returns it to the frontend.
+9. **Display Promotion Code**: The frontend displays the promotion code to the user.
+10. **User Shares Code**: If the user is eligible, they share the promotion code.
+11. **Airdrop Verification**: The user clicks 'Check Airdrop', and the frontend sends a request to the backend `/check-airdrop-amount` endpoint with the user's address, step, and promotion code as parameters.
+12. **Airdrop Calculation**: The backend verifies the promotion code and calculates the airdrop amount.
+13. **Airdrop Amount Query**: The backend sends a GET request to the Airdrop Server `/set_airdrop` endpoint with the user's address and calculated airdrop amount as parameters.
+14. **Airdrop Determination**: The Airdrop Server determines the airdrop amount based on the user's transactions and returns it to the backend.
+15. **Display Airdrop Amount**: The backend returns the airdrop amount to the frontend, which then displays it to the user.
+16. **Airdrop Confirmation**: The user clicks 'Confirm Airdrop', and the frontend sends a GET request to the backend `/send-airdrop-parent` endpoint with the user's address and step as parameters.
+17. **Final Reward Calculation**: The backend calculates the final reward.
+18. **Airdrop Reward Request**: The backend sends a GET request to the Airdrop Server `/append_airdrop` endpoint with the user's address and final reward amount as parameters.
+19. **Reward Transaction Processing**: The Airdrop Server processes the reward transaction and returns the transaction result to the backend.
+20. **Airdrop Reward Delivery**: The Airdrop Server sends the airdrop reward to the user.
 
 ### Additional Details
 
@@ -204,6 +233,7 @@ AIRDROP_CLAIM_AMOUNT=25000 \
 AIRDROP_REWARD_AMOUNT=10000 \
 AIRDROP_COUNT_ADDRESS=http://localhost:8081/v1/info/set_airdrop \
 AIRDROP_REWARD_ADDRESS=http://localhost:8081/v1/info/append_airdrop \
+AIRDROP_CHECK_ADDRESS=http://localhost:8081/v1/info/check_eligibility \
 WEBPAGE_ADDRESS=https://lotso.org \
 AUTH_WEB_ADDRESS=https://oauth.btiplatform.com \
 docker-compose up -d
@@ -229,6 +259,7 @@ AIRDROP_CLAIM_AMOUNT=25000 \
 AIRDROP_REWARD_AMOUNT=10000 \
 AIRDROP_COUNT_ADDRESS=http://localhost:8081/v1/info/set_airdrop \
 AIRDROP_REWARD_ADDRESS=http://localhost:8081/v1/info/append_airdrop \
+AIRDROP_CHECK_ADDRESS=http://localhost:8081/v1/info/check_eligibility \
 WEBPAGE_ADDRESS=https://lotso.org \
 AUTH_WEB_ADDRESS=https://oauth.btiplatform.com \
 docker-compose down

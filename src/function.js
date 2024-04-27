@@ -4,6 +4,8 @@ const mongoUtil = require('./db');
 let dbConnection = null;
 let userDbConnection = null;
 
+const airdropCheckAddress = process.env.AIRDROP_CHECK_ADDRESS || 'http://localhost:8081/v1/info/check_eligibility';
+
 /**
  * @brief Removes duplicate documents from a collection based on specified fields.
  * @param {Collection} collection - The MongoDB collection to remove duplicates from.
@@ -16,13 +18,13 @@ async function removeDuplicates(collection, fields) {
 
     const duplicates = await collection.aggregate([
         { $group: { _id: groupFields, count: { $sum: 1 }, dups: { $push: "$_id" } } },
-        { $match: { count: { $gt: 1 } } }
+        { $match: { count: { $gt: 1 } } },
     ]).toArray();
 
-    for (let i = 0; i < duplicates.length; i++) {
-        duplicates[i].dups.shift();      // First element skipped for deleting
-        await collection.deleteMany({ _id : {$in: duplicates[i].dups } });
-    }
+    await Promise.all(duplicates.map(async (duplicate) => {
+        duplicate.dups.shift();      // First element skipped for deleting
+        await collection.deleteMany({ _id: { $in: duplicate.dups } });
+    }));
 }
 
 /**
@@ -81,7 +83,7 @@ mongoUtil.connectToServer()
 
         Promise.all([
             // Enforce uniqueness on the userId field but allow multiple type values for each userId.
-            createIndex(localUserDbConnection.collection('twitterInteractions'), { userId: 1, type: 1 }, true),
+            createIndex(localUserDbConnection.collection('twitterInteractions'), { userId: 1, targetId: 1, type: 1 }, true),
             createIndex(localUserDbConnection.collection('airdropClaim'), { userAddress: 1 }, true),
             createIndex(localUserDbConnection.collection('promotionCode'), { userAddress: 1 }, true),
             createIndex(localUserDbConnection.collection('users'), { userAddress: 1 }),
@@ -262,10 +264,10 @@ async function checkInteraction(userId, targetId, type, requestBody = null) {
                 const twoHoursInMilliseconds = 2 * 60 * 60 * 1000; // 2 hours in milliseconds
 
                 if (timeDifference < twoHoursInMilliseconds) {
-                    return { status: true, message: `User has already interacted with this action: ${type} within the last two hours.` };
+                    return { status: true, message: `User: ${userId} has already interacted to the target: ${targetId} with this action: ${type} within the last two hours.` };
                 }
 
-                return { status: false, message: `User has not interacted with this action: ${type} within the last two hours.` };
+                return { status: false, message: `User: ${userId} has not interacted to the target: ${targetId} with this action: ${type} within the last two hours.` };
             }
 
             throw new Error("Interaction failed:", logEntry.error);
@@ -1033,7 +1035,7 @@ async function generatePromotionCode(userAddress) {
  * @param {string} userAddress - The address of the user.
  * @param {string} promotionCode - The promotion code to be used.
  * 
- * @return {Promise<import('mongodb').UpdateWriteOpResult>} A promise that resolves to the result of the update operation.
+ * @return {object} An object indicating whether the promotion code was valid.
  * 
  * @note This function fetches the promotion document using the provided promotion code from the 'promotionCode' collection in the database.
  * If a document is found, the user record is updated with the parent address based on the address found in the promotion document.
@@ -1041,23 +1043,72 @@ async function generatePromotionCode(userAddress) {
  * Any errors that occur during database operations are caught and logged, and then re-thrown for the caller to handle.
  */
 async function usePromotionCode(userAddress, promotionCode) {
+    // We need to check if user has already been eligible for the promotion code
     try {
         // Fetch the promotion document using the promotion code
         const promoDoc = await userDbConnection.collection('promotionCode').findOne({ promotionCode }, { sort: { createdAt: -1 } });
 
         if (promoDoc) {
             // Proceed with updating the user record if the promotion code is found
-            return await userDbConnection.collection('users').updateOne(
-                { userAddress },
+            await userDbConnection.collection('users').updateOne(
+                { userAddress }, // Filter condition to find the user record
                 { $set: { parentAddress: promoDoc.userAddress } }, // Setting parentAddress based on the address found in the promoDoc
             );
+            return { valid: true };
         }
         // Throw an error if no document is found with the provided promotion code
-        throw new Error('Invalid promotion code');
+        console.error('Invalid promotion code');
+        return { valid: false };
     } catch (error) {
         // Catch and handle any errors that occur during database operations
         console.error('Error using promotion code:', error);
-        throw error; // Re-throw the error after logging it
+        throw error; // Re-throw the error to be handled by the caller
+    }
+}
+
+/**
+ * @brief Checks the eligibility of a user based on their user address.
+ * 
+ * @param {string} userAddress - The user address to check eligibility for.
+ * 
+ * @return {object} An object indicating whether the user is eligible.
+ * 
+ * @note This function makes an API call to check the eligibility of the user address.
+ * If the user is not found in the database, it inserts a new user with the user address
+ * and eligibility based on the API result.
+ * 
+ * @throws {Error} - Throws an error if there is an error checking the eligibility.
+ */
+// TODO:
+async function checkIfPurchased(userAddress) {
+    try {
+        const user = await userDbConnection.collection('users').findOne({ userAddress });
+
+        if (!user) {
+            const apiUrl = `${airdropCheckAddress}?address=${encodeURIComponent(userAddress)}`;
+            const result = await fetch(apiUrl)
+                .then(response => response.json()) // Parse the JSON response
+                .then(data => {
+                    console.log('Eligibility checking response:', data);
+                })
+                .catch(err => {
+                    console.error('Error checking buyer:', err.message);
+                    throw err; // Re-throw the error to be handled by the caller
+                });
+
+            // Insert a new user with the userAddress and isBuyer based on the API result
+            await userDbConnection.collection('users').insertOne({
+                userAddress,
+                purchase: result.data === true, // TODO: Update this based on the actual response
+            });
+            return { purchase: result.data === true };
+        }
+
+        if (user.purchase === undefined) throw new Error('Eligibility not defined for user');
+        return { purchase: user.purchase };
+    } catch (error) {
+        console.error('Error checking buyer:', error);
+        throw error; // Re-throw the error to be handled by the caller
     }
 }
 
@@ -1066,7 +1117,7 @@ async function usePromotionCode(userAddress, promotionCode) {
  * 
  * @param {string} userAddress - The address of the child user.
  * 
- * @return {string|null} The address of the parent user if found, otherwise null.
+ * @return {object} An object containing the parent address.
  * 
  * @note This function retrieves the parent address of the child user and rewards the parent user with the address.
  * If the parent address is not found or no parent address is available, it returns null.
@@ -1076,28 +1127,91 @@ async function rewardParentUser(userAddress) {
     try {
         // Retrieve the child user's document to get the parent address
         const doc = await userDbConnection.collection('users').findOne({ userAddress });
-        if (doc && doc.parentAddress) {
+        if (!doc) throw new Error('User not found.');
+
+        if (doc.parentAddress) {
             const claim = await userDbConnection.collection('airdropClaim').findOne({ userAddress: doc.parentAddress }, { sort: { createdAt: -1 } });
 
-            if (!claim) {
-                console.log('No address found for parent user.');
-                return null;
-            }
+            if (!claim) throw new Error('No address found for parent user.');
 
             const parentAddress = claim.userAddress;
             // Logic to reward the parent user with the address can be added here
             console.log(`Rewarding parent at address ${parentAddress}`);
             
-            // Return the address for further processing or confirmation
-            return parentAddress;
+            return ({ parentAddress });
         }
 
-        console.log('User not found or no parent address available.');
-        return null;
+        throw new Error('No parent address available for this user.');
     } catch (error) {
         // Log or handle errors appropriately within the catch block
         console.error('Error in rewarding parent user:', error);
         throw error;  // Optionally re-throw the error to be handled by the caller
+    }
+}
+
+/**
+ * @brief Checks the reward for a parent user based on their purchase status.
+ * 
+ * @param {string} userAddress - The address of the user.
+ * @param {string} airdropAmount - The amount of the reward to be appended.
+ * @param {object} airdropRewardMaxForBuyer - The maximum reward amount for a buyer.
+ * @param {object} airdropRewardMaxForNotBuyer - The maximum reward amount for a non-buyer.
+ * 
+ * @return {object} - The append amount and reward status.
+ * 
+ * @note This function assumes that there is a MongoDB connection named `userDbConnection` and a collection named `users`.
+ */
+async function checkRewardParentUser(userAddress, airdropAmount, { airdropRewardMaxForBuyer, airdropRewardMaxForNotBuyer }) {
+    try {
+        const doc = await userDbConnection.collection('users').findOne({ userAddress });
+        if (!doc) throw new Error('User not found.');
+
+        const maxReward = doc.purchase ? parseInt(airdropRewardMaxForBuyer, 10) : parseInt(airdropRewardMaxForNotBuyer, 10);
+
+        const docParent = await userDbConnection.collection('promotionCode').findOne({ userAddress });
+        if (!docParent || !docParent.totalRewardAmount) throw new Error('No promotion code or total reward amount found for parent user.');
+
+        let appendAmount = 0;
+        if (docParent.totalRewardAmount < maxReward) {
+            appendAmount = Math.min(maxReward - docParent.totalRewardAmount, parseInt(airdropAmount, 10));
+        }
+
+        return ({ appendAmount, reward: appendAmount > 0 });
+    } catch (error) {
+        console.error('Failed to check reward for parent user:', error);
+        throw new Error('Error checking reward for parent user');
+    }
+}
+
+/**
+ * @brief Appends the reward amount to the total reward amount of a parent user.
+ * 
+ * @param {string} userAddress - The address of the parent user.
+ * @param {string} rewardAmount - The amount of the reward to be appended.
+ * 
+ * @return {Object|null} - The updated total reward amount of the parent user, or null if no promotion code is found.
+ * 
+ * @note This function checks if there is already a promotion code for the user. If a promotion code is found, it appends the reward amount to the existing total reward amount. If the reward amount exceeds the maximum reward amount, it returns the existing total reward amount without appending. If no promotion code is found, it returns null.
+ */
+async function appendRewardParentUser(userAddress, rewardAmount) {
+    try {
+        // Check if there is already a promotion code for this user
+        const doc = await userDbConnection.collection('promotionCode').findOne({ userAddress });
+        if (!doc) throw new Error('No promotion code found for parent user.');
+
+        if (doc.totalRewardAmount) {
+            // Append the reward amount to the existing total reward amount
+            await userDbConnection.collection('promotionCode').updateOne(
+                { userAddress },
+                { $set: { totalRewardAmount: rewardAmount } },
+            );
+            return ({ totalRewardAmount: rewardAmount });
+        }
+
+        throw new Error('No total reward amount found for parent user.');
+    } catch (error) {
+        console.error('Failed to append reward for parent user:', error);
+        throw new Error('Error appending reward for parent user');
     }
 }
 
@@ -1117,9 +1231,7 @@ async function rewardParentUser(userAddress) {
  *       The function throws an error if the user database is not connected or if there is an error logging the subscription info.
  */
 async function logSubscriptionInfo(userEmail, userName = null, subscriptionInfo = null) {
-    if (!userDbConnection) {
-        throw new Error("User database not connected");
-    }
+    if (!userDbConnection) throw new Error("User database not connected");
     try {
         // Log the subscription information for the user
         const existingUser = await userDbConnection.collection('subscriptionInfo').findOne({ userEmail });
@@ -1178,4 +1290,7 @@ module.exports = {
     usePromotionCode,
     rewardParentUser,
     logSubscriptionInfo,
+    checkIfPurchased,
+    appendRewardParentUser,
+    checkRewardParentUser,
 };

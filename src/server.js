@@ -6,7 +6,6 @@ const cors = require('cors');
 const session = require('express-session');
 const crypto = require('crypto');
 const redis = require('redis');
-const axios = require('axios');
 const RedisStore = require('connect-redis').default;
 const utils = require('./function');
 
@@ -14,6 +13,9 @@ const airdropCountAddress = process.env.AIRDROP_COUNT_ADDRESS || 'http://localho
 const airdropRewardAddress = process.env.AIRDROP_REWARD_ADDRESS || 'http://localhost:8081/v1/info/append_airdrop';
 const webpageAddress = process.env.WEBPAGE_ADDRESS || 'https://lotso.org';
 const authWebAddress = process.env.AUTH_WEB_ADDRESS || 'https://oauth.btiplatform.com';
+const airdropRewardMaxForBuyer = process.env.AIRDROP_REWARD_MAX_FOR_BUYER || '10000000';
+const airdropRewardMaxForNotBuyer = process.env.AIRDROP_REWARD_MAX_FOR_NOT_BUYER || '2000000';
+const airdropPerPerson = process.env.AIRDROP_PER_PERSON || '50000';
 
 const app = express();
 app.set('trust proxy', 1); // Trust the first proxy
@@ -551,13 +553,16 @@ app.get('/check-airdrop-amount', (req, res) => {
             console.log("Step is not a valid number");
             return res.status(400).json({ error: 'Step must be a number and value is 0,1,2,3,4' });
         }
+
         // We need to calculate the amount based on the step
         let airdrop_amount = step * parseInt(process.env.AIRDROP_CLAIM_AMOUNT, 10);
         if (promotionCode) {
             utils.usePromotionCode(address, promotionCode)
                 .then(result => {
-                    console.log('Promotion code applied successfully:', result);
-                    airdrop_amount *= parseFloat(process.env.AIRDROP_REWARD_RATIO);
+                    if (result.valid) {
+                        console.log('Promotion code applied successfully:', result);
+                        airdrop_amount *= parseFloat(process.env.AIRDROP_REWARD_RATIO);
+                    }
                 })
                 .catch(error => {
                     console.error('Failed to apply promotion code:', error);
@@ -565,13 +570,37 @@ app.get('/check-airdrop-amount', (req, res) => {
         } else {
             console.log("Promotion code not found");
         }
-        // Perform a HTTP GET request
-        const apiUrl = `${airdropCountAddress}?address=${encodeURIComponent(address)}&amount=${encodeURIComponent(airdrop_amount)}`;
-        axios.get(apiUrl)
-            .then(response => {
-                // Axios will automatically parse the JSON response and wrap it into data property
-                console.log('Airdrop checking response:', response.data);
-                res.json(response.data);
+
+        // TODO: Check if the user address has purchased the first generation of $Lotso tokens
+        let purchase = false;
+        utils.checkIfPurchased(address)
+            .then(result => {
+                purchase = result.purchase;
+                console.log("Purchase status:", purchase);
+            })
+            .catch(error => res.status(500).json({
+                error: "Failed to check purchase",
+                details: error,
+            }));
+
+        // Perform a HTTP POST request
+        const postData = {
+            address,
+            purchase, // We need to add a boolen variable to distinguish for buyer and non-buyer
+            amount: airdrop_amount,
+        };
+        // Endpoints: /set_airdrop
+        fetch(airdropCountAddress, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(postData),
+        })
+            .then(response => response.json())
+            .then(data => {
+                console.log('Airdrop checking response:', data);
+                res.json(data);
             })
             .catch(err => {
                 console.error('Error checking promotion:', err.message);
@@ -644,35 +673,87 @@ app.get('/send-airdrop-parent', (req, res) => {
             return res.status(400).json({ error: 'Address and step are required' });
         }
         utils.rewardParentUser(address)
-            .then(parentAddress => {
-                // Perform a HTTP GET request
-                const airdrop_amount = step * parseInt(process.env.AIRDROP_REWARD_AMOUNT, 10);
-                const apiUrl = `${airdropRewardAddress}?address=${encodeURIComponent(parentAddress)}&amount=${encodeURIComponent(airdrop_amount)}`;
-                axios.get(apiUrl)
-                    .then(response => {
-                        // Axios will automatically parse the JSON response and wrap it into data property
-                        console.log('Airdrop checking response:', response.data);
-                        res.json(response.data);
-                    })
-                    .catch(err => {
-                        console.error('Error checking promotion:', err.message);
-                        res.status(500).json({
-                            error: "Failed to log promotion",
-                            details: err.message,
+            .then(({ parentAddress }) => {
+                // Check the limitation of reward for this parent user
+                utils.checkRewardParentUser(parentAddress, airdropPerPerson, { airdropRewardMaxForBuyer, airdropRewardMaxForNotBuyer })
+                    .then(({ appendAmount, reward }) => {
+                        console.log('The append airdrop amount:', appendAmount);
+                        if (!reward) {
+                            console.log('The total airdrop amount is exceeded the limitation');
+                            return res.json({ reward });
+                        }
+
+                        // Perform a HTTP GET request to the airdrop server, endpoint: /append_airdrop
+                        const apiUrl = `${airdropRewardAddress}?address=${encodeURIComponent(parentAddress)}&amount=${encodeURIComponent(appendAmount)}`;
+                        fetch(apiUrl)
+                            .then(response => response.json()) // Parse the JSON response
+                            .then(({ airdrop_amount: logAirdropAmount }) => {
+                                console.log('Airdrop checking response:', logAirdropAmount);
+                                if (!logAirdropAmount) {
+                                    console.log('The total airdrop amount is exceeded the limitation:', logAirdropAmount);
+                                    return res.json({ airdrop_amount: logAirdropAmount });
+                                }
+
+                                // Append the airdrop reward to the parent user
+                                utils.appendRewardParentUser(parentAddress, logAirdropAmount)
+                                    .then(({ totalRewardAmount: rewardAmount }) => {
+                                        console.log('Parent rewarded successfully:', rewardAmount);
+                                    })
+                                    .catch(error => {
+                                        console.error('Failed to reward parent:', error);
+                                    });
+
+                                res.json(apiUrl);
+                            })
+                            .catch(err => {
+                                console.error('Error checking promotion:', err.message);
+                                res.status(500).json({
+                                    error: "Failed to log promotion",
+                                    details: err.message,
+                            });
                         });
+                    })
+                    .catch(error => {
+                        console.error('Failed to check reward parent:', error);
                     });
             })
             .catch(error => {
-                res.status(500).json({
-                    error: "Failed to reward parent",
-                    details: error,
-                });
+            res.status(500).json({
+                error: "Failed to reward parent",
+                details: error,
+            });
             });
     } else {
         res.status(401).json({ error: 'Authentication required' });
     }
 });
 app.options('/send-airdrop-parent', cors(corsOptions)); // Enable preflight request for this endpoint
+
+app.get('/check-purchase', (req, res) => {
+    if (!req.session) {
+        return res.status(400).send("No session found");
+    }
+    console.log("Endpoint hit: /check-purchase");
+
+    if (req.session.accessToken && req.session.accessTokenSecret) {
+        const { address } = req.query;
+        if (!address) {
+            console.log("Address not found");
+            return res.status(400).json({ error: 'Address are required' });
+        }
+
+        // Check if the user address has purchased the first generation of $Lotso tokens
+        utils.checkIfPurchased(address)
+            .then(result => res.json(result))
+            .catch(error => res.status(500).json({
+                error: "Failed to check purchase",
+                details: error,
+            }));
+    } else {
+        res.status(401).json({ error: 'Authentication required' });
+    }
+});
+app.options('/check-purchase', cors(corsOptions)); // Enable preflight request for this endpoint
 
 app.get('/subscription-info', (req, res) => {
     console.log("Endpoint hit: /subscription-info");
