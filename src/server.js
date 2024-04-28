@@ -16,6 +16,8 @@ const authWebAddress = process.env.AUTH_WEB_ADDRESS || 'https://oauth.btiplatfor
 const airdropRewardMaxForBuyer = process.env.AIRDROP_REWARD_MAX_FOR_BUYER || '10000000';
 const airdropRewardMaxForNotBuyer = process.env.AIRDROP_REWARD_MAX_FOR_NOT_BUYER || '2000000';
 const airdropPerPerson = process.env.AIRDROP_PER_PERSON || '50000';
+const airdropPerStep = process.env.AIRDROP_PER_STEP || '50000';
+const lotsoPurchasedUserAmount = process.env.LOTSO_PURCHASED_USER_AMOUNT || '300000';
 
 const app = express();
 app.set('trust proxy', 1); // Trust the first proxy
@@ -536,7 +538,7 @@ app.get('/log-airdrop', (req, res) => {
 app.options('/log-airdrop', cors(corsOptions)); // Enable preflight request for this endpoint
 
 // This endpoint will only be trigger when the user clicks the "Check Airdrop Amount" button
-app.get('/check-airdrop-amount', (req, res) => {
+app.get('/check-airdrop-amount', async (req, res) => {
     if (!req.session) {
         return res.status(400).send("No session found");
     }
@@ -554,61 +556,64 @@ app.get('/check-airdrop-amount', (req, res) => {
             return res.status(400).json({ error: 'Step must be a number and value is 0,1,2,3,4' });
         }
 
-        // We need to calculate the amount based on the step
-        let airdrop_amount = step * parseInt(process.env.AIRDROP_CLAIM_AMOUNT, 10);
-        if (promotionCode) {
-            utils.usePromotionCode(address, promotionCode)
-                .then(result => {
-                    if (result.valid) {
-                        console.log('Promotion code applied successfully:', result);
-                        airdrop_amount *= parseFloat(process.env.AIRDROP_REWARD_RATIO);
-                    }
-                })
-                .catch(error => {
-                    console.error('Failed to apply promotion code:', error);
-                });
-        } else {
-            console.log("Promotion code not found");
-        }
-
         // TODO: Check if the user address has purchased the first generation of $Lotso tokens
-        let purchase = false;
-        utils.checkIfPurchased(address)
-            .then(result => {
-                purchase = result.purchase;
-                console.log("Purchase status:", purchase);
-            })
-            .catch(error => res.status(500).json({
-                error: "Failed to check purchase",
-                details: error,
-            }));
-
-        // Perform a HTTP POST request
-        const postData = {
-            address,
-            purchase, // We need to add a boolen variable to distinguish for buyer and non-buyer
-            amount: airdrop_amount,
-        };
-        // Endpoints: /set_airdrop
-        fetch(airdropCountAddress, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(postData),
-        })
-            .then(response => response.json())
-            .then(data => {
-                console.log('Airdrop checking response:', data);
-                res.json(data);
-            })
-            .catch(err => {
-                console.error('Error checking promotion:', err.message);
-                res.status(500).json({
-                    error: "Failed to log promotion",
-                    details: err.message,
-                });
+        try {
+            const purchaseResult = await utils.checkIfPurchased(address);
+            let airdrop_amount = 0;
+    
+            if (!purchaseResult.purchase) {
+                if (!promotionCode) {
+                    console.log("Promotion code not found");
+                    return res.status(400).json({ error: 'Promotion code is required' });
+                }
+                try {
+                    const promoResult = await utils.usePromotionCode(address, promotionCode);
+                    if (promoResult.valid) {
+                        airdrop_amount = stepNumber * parseInt(airdropPerStep, 10);
+                        console.log('Promotion code applied successfully:', promoResult);
+                    } else {
+                        console.error('Invalid promotion code:', address);
+                        return res.status(400).json({
+                            error: 'Invalid promotion code',
+                        });
+                    }
+                } catch (promoError) {
+                    console.error('Failed to apply promotion code:', promoError);
+                    return res.status(500).json({
+                        error: 'Failed to apply promotion code',
+                        details: promoError,
+                    });
+                }
+            } else {
+                // For the buyer, the airdrop amount is fixed (e.g., 300,000)
+                airdrop_amount = parseInt(lotsoPurchasedUserAmount, 10);
+            }
+    
+            // Prepare data for the POST request
+            const postData = {
+                address,
+                purchase: purchaseResult.purchase,
+                amount: airdrop_amount,
+            };
+    
+            // Perform a HTTP POST request
+            const response = await fetch(airdropCountAddress, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(postData),
             });
+            const data = await response.json();
+            console.log('Airdrop checking response:', data);
+            res.json(data);
+        } catch (error) {
+            console.error('Error in handling the request:', error);
+            res.status(500).json({
+                error: "Failed to handle the request",
+                details: error.toString(),
+            });
+        }
     } else {
         res.status(401).json({ error: 'Authentication required' });
     }
@@ -667,10 +672,10 @@ app.get('/send-airdrop-parent', (req, res) => {
     console.log("Endpoint hit: /send-airdrop-parent");
 
     if (req.session.accessToken && req.session.accessTokenSecret) {
-        const { address, step } = req.query;
-        if (!address || !step) {
-            console.log("Address or step not found");
-            return res.status(400).json({ error: 'Address and step are required' });
+        const { address } = req.query;
+        if (!address) {
+            console.log("Address not found");
+            return res.status(400).json({ error: 'Address is required' });
         }
         utils.rewardParentUser(address)
             .then(({ parentAddress }) => {

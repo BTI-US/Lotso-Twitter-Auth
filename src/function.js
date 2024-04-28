@@ -1079,7 +1079,6 @@ async function usePromotionCode(userAddress, promotionCode) {
  * 
  * @throws {Error} - Throws an error if there is an error checking the eligibility.
  */
-// TODO:
 async function checkIfPurchased(userAddress) {
     try {
         const user = await userDbConnection.collection('users').findOne({ userAddress });
@@ -1089,22 +1088,25 @@ async function checkIfPurchased(userAddress) {
             const result = await fetch(apiUrl)
                 .then(response => response.json()) // Parse the JSON response
                 .then(data => {
+                    const purchaseStatus = data.purchase;
                     console.log('Eligibility checking response:', data);
+                    if (purchaseStatus === undefined) throw new Error('Purchase status not defined for user');
+
+                    // Insert a new user with the userAddress and isBuyer based on the API result
+                    userDbConnection.collection('users').insertOne({
+                        userAddress,
+                        purchase: purchaseStatus === true, // TODO: Update this based on the actual response
+                    });
+
+                    return { purchase: purchaseStatus === true };
                 })
                 .catch(err => {
                     console.error('Error checking buyer:', err.message);
                     throw err; // Re-throw the error to be handled by the caller
                 });
-
-            // Insert a new user with the userAddress and isBuyer based on the API result
-            await userDbConnection.collection('users').insertOne({
-                userAddress,
-                purchase: result.data === true, // TODO: Update this based on the actual response
-            });
-            return { purchase: result.data === true };
         }
 
-        if (user.purchase === undefined) throw new Error('Eligibility not defined for user');
+        console.log('User purchase status:', user.purchase);
         return { purchase: user.purchase };
     } catch (error) {
         console.error('Error checking buyer:', error);
