@@ -4,7 +4,7 @@ const mongoUtil = require('./db');
 let dbConnection = null;
 let userDbConnection = null;
 
-const airdropCheckAddress = process.env.AIRDROP_CHECK_ADDRESS || 'http://localhost:8081/v1/info/check_eligibility';
+const airdropCheckAddress = `http://${process.env.AIRDROP_SERVER_HOST}:${process.env.AIRDROP_SERVER_PORT}/v1/info/check_eligibility`;
 
 /**
  * @brief Removes duplicate documents from a collection based on specified fields.

@@ -14,7 +14,7 @@ services:
       SERVER_PORT: ${SERVER_PORT:-5000}
       MONGODB_DB: ${MONGODB_DB:-twitterLogs}
       MONGODB_USERDB: ${MONGODB_USERDB:-twitterUsers}
-      MONGODB_PORT: ${MONGODB_PORT:-27017}
+      MONGODB_PORT: 27017
       MONGODB_USERNAME: ${MONGODB_USERNAME:-admin}
       MONGODB_PASSWORD: ${MONGODB_PASSWORD}
       TWITTER_CONSUMER_KEY: ${TWITTER_CONSUMER_KEY}
@@ -23,14 +23,13 @@ services:
       REDIS_HOST: redis
       # REDIS_PORT: ${REDIS_PORT:-6000}
       REDIS_PORT: 6379
+      AIRDROP_SERVER_HOST: airdrop-server
+      AIRDROP_SERVER_PORT: ${AIRDROP_SERVER_PORT:-8081}
       AIRDROP_PER_STEP: ${AIRDROP_PER_STEP:-25000}
       AIRDROP_REWARD_MAX_FOR_BUYER: ${AIRDROP_REWARD_MAX_FOR_BUYER:-10000000}
       AIRDROP_REWARD_MAX_FOR_NOT_BUYER: ${AIRDROP_REWARD_MAX_FOR_NOT_BUYER:-2000000}
       AIRDROP_PER_PERSON: ${AIRDROP_PER_PERSON:-50000}
       LOTSO_PURCHASED_USER_AMOUNT: ${LOTSO_PURCHASED_USER_AMOUNT:-100000}
-      AIRDROP_COUNT_ADDRESS: ${AIRDROP_COUNT_ADDRESS:-http://localhost:8081/v1/info/set_airdrop}
-      AIRDROP_REWARD_ADDRESS: ${AIRDROP_REWARD_ADDRESS:-http://localhost:8081/v1/info/append_airdrop}
-      AIRDROP_CHECK_ADDRESS: ${AIRDROP_CHECK_ADDRESS:-http://localhost:8081/v1/info/check_eligibility}
       WEBPAGE_ADDRESS: ${WEBPAGE_ADDRESS:-https://lotso.org}
       AUTH_WEB_ADDRESS: ${AUTH_WEB_ADDRESS:-https://oauth.btiplatform.com}
     ports:
@@ -40,6 +39,8 @@ services:
       - redis
       # - airdrop-server
     restart: always
+    networks:
+      - lotso-network
 
   mongodb:
     container_name: mongodb
@@ -48,14 +49,22 @@ services:
       MONGO_INITDB_ROOT_USERNAME: ${MONGODB_USERNAME:-admin}
       MONGO_INITDB_ROOT_PASSWORD: ${MONGODB_PASSWORD}
     ports:
-      - "${MONGODB_PORT:-27017}:${MONGODB_PORT:-27017}"
+      - "${MONGODB_PORT:-27017}:27017"
     volumes:
       - "/root/mongodb:/data/db"
     restart: always
+    networks:
+      - lotso-network
 
   redis:
     container_name: redis
     image: redis:latest
     ports:
-      - "${REDIS_PORT:-6000}:${REDIS_PORT:-6000}"
+      - "${REDIS_PORT:-6000}:6379"
     restart: always
+    networks:
+      - lotso-network
+
+networks:
+  lotso-network:
+    external: true

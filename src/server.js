@@ -9,8 +9,9 @@ const redis = require('redis');
 const RedisStore = require('connect-redis').default;
 const utils = require('./function');
 
-const airdropCountAddress = process.env.AIRDROP_COUNT_ADDRESS || 'http://localhost:8081/v1/info/set_airdrop';
-const airdropRewardAddress = process.env.AIRDROP_REWARD_ADDRESS || 'http://localhost:8081/v1/info/append_airdrop';
+const airdropCountAddress = `http://${process.env.AIRDROP_SERVER_HOST}:${process.env.AIRDROP_SERVER_PORT}/v1/info/set_airdrop`;
+const airdropRewardAddress = `http://${process.env.AIRDROP_SERVER_HOST}:${process.env.AIRDROP_SERVER_PORT}/v1/info/append_airdrop`;
+const airdropRecipientAddress = `http://${process.env.AIRDROP_SERVER_HOST}:${process.env.AIRDROP_SERVER_PORT}/v1/info/recipients_count`;
 const webpageAddress = process.env.WEBPAGE_ADDRESS || 'https://lotso.org';
 const authWebAddress = process.env.AUTH_WEB_ADDRESS || 'https://oauth.btiplatform.com';
 const airdropRewardMaxForBuyer = process.env.AIRDROP_REWARD_MAX_FOR_BUYER || '10000000';
@@ -762,4 +763,19 @@ https.createServer({
 }, app)
 .listen(SERVER_PORT, () => {
     console.log(`Listening on port ${SERVER_PORT}!`);
+
+    // Send a GET request when the server starts
+    fetch(airdropRecipientAddress)
+        .then(res => res.json()) // parse response as JSON
+        .then(body => {
+            if (body.code !== 0) {
+                console.error(body.error);
+                process.exit(1); // terminate the program
+            }
+            console.log(`GET request sent to ${airdropRecipientAddress}. Response: ${JSON.stringify(body)}`);
+        })
+        .catch(err => {
+            console.error(`Error sending GET request: ${err.message}`);
+            process.exit(1); // terminate the program
+        });
 });

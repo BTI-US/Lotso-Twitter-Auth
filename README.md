@@ -211,6 +211,13 @@ sequenceDiagram
    docker run --name redis -d -p 6379:6379 redis
    ```
 
+### Setting the docker network
+
+We need to create a docker network to allow the containers to communicate with each other. Run the following command:
+```bash
+docker network create lotso-network
+```
+
 ## Running the Application
 
 Run the Docker container using the following command:
@@ -228,12 +235,10 @@ PRIVKEY_PATH=/etc/ssl/certs/privkey2.pem \
 HOST_CERT_FOLDER=/etc/letsencrypt/archive/btiplatform.com \
 CONTAINER_CERT_FOLDER=/etc/ssl/certs \
 REDIS_PORT=6000 \
+AIRDROP_SERVER_PORT=8081 \
 AIRDROP_PER_STEP=50000 \
 AIRDROP_REWARD_AMOUNT=10000 \
 LOTSO_PURCHASED_USER_AMOUNT=300000 \
-AIRDROP_COUNT_ADDRESS=http://localhost:8081/v1/info/set_airdrop \
-AIRDROP_REWARD_ADDRESS=http://localhost:8081/v1/info/append_airdrop \
-AIRDROP_CHECK_ADDRESS=http://localhost:8081/v1/info/check_eligibility \
 WEBPAGE_ADDRESS=https://lotso.org \
 AUTH_WEB_ADDRESS=https://oauth.btiplatform.com \
 docker-compose up -d
@@ -254,12 +259,10 @@ PRIVKEY_PATH=/etc/ssl/certs/privkey2.pem \
 HOST_CERT_FOLDER=/etc/letsencrypt/archive/btiplatform.com \
 CONTAINER_CERT_FOLDER=/etc/ssl/certs \
 REDIS_PORT=6000 \
+AIRDROP_SERVER_PORT=8081 \
 AIRDROP_PER_STEP=50000 \
 AIRDROP_REWARD_AMOUNT=10000 \
 LOTSO_PURCHASED_USER_AMOUNT=300000 \
-AIRDROP_COUNT_ADDRESS=http://localhost:8081/v1/info/set_airdrop \
-AIRDROP_REWARD_ADDRESS=http://localhost:8081/v1/info/append_airdrop \
-AIRDROP_CHECK_ADDRESS=http://localhost:8081/v1/info/check_eligibility \
 WEBPAGE_ADDRESS=https://lotso.org \
 AUTH_WEB_ADDRESS=https://oauth.btiplatform.com \
 docker-compose down
