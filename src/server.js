@@ -188,351 +188,324 @@ app.get('/check-auth-status', (req, res) => {
 });
 app.options('/check-auth-status', cors(corsOptions)); // Enable preflight request for this endpoint
 
-app.get('/check-retweet', (req, res) => {
+app.get('/check-retweet', async (req, res) => {
     if (!req.session) {
         return res.status(400).send("No session found");
     }
     console.log("Endpoint hit: /check-retweet");
 
-    if (req.session.accessToken && req.session.accessTokenSecret) {
-        const { tweetId } = req.query;
+    if (!(req.session.accessToken && req.session.accessTokenSecret)) {
+        return res.status(401).json({ error: 'Authentication required' });
+    }
 
+    const { tweetId } = req.query;
+    if (!tweetId) {
+        return res.status(400).json({ error: 'tweetId are required' });
+    }
+
+    try {
         // Fetch the user ID from the username first
-        utils.getUserTwitterId(req.session.accessToken, req.session.accessTokenSecret)
-            .then(userId => {
-                utils.checkIfRetweeted(req.session.accessToken, req.session.accessTokenSecret, userId, tweetId)
-                    .then(result => res.json(result))
-                    .catch(error => {
-                        const statusCode = error.statusCode || 500;
-                        res.status(statusCode).json({ error: error.toString() });
-                    });
-                })
-                .catch(error => res.status(500).json({ error: error.message }));
-    } else {
-        res.status(401).json({ error: 'Authentication required' });
+        const userId = await utils.getUserTwitterId(req.session.accessToken, req.session.accessTokenSecret);
+        const result = await utils.checkIfRetweeted(req.session.accessToken, req.session.accessTokenSecret, userId, tweetId);
+        res.json(result);
+    } catch (error) {
+        const statusCode = error.statusCode || 500;
+        res.status(statusCode).json({ error: error.toString() });
     }
 });
 app.options('/check-retweet', cors(corsOptions)); // Enable preflight request for this endpoint
 
-app.get('/check-follow', (req, res) => {
+app.get('/check-follow', async (req, res) => {
     if (!req.session) {
         return res.status(400).send("No session found");
     }
     console.log("Endpoint hit: /check-follow");
 
-    if (req.session.accessToken && req.session.accessTokenSecret) {
-        const { userName } = req.query; // Get the username from the query parameters
-        if (!userName) {
-            return res.status(400).json({ error: 'userName are required' });
-        }
+    if (!(req.session.accessToken && req.session.accessTokenSecret)) {
+        return res.status(401).json({ error: 'Authentication required' });
+    }
 
+    const { userName } = req.query; // Get the username from the query parameters
+    if (!userName) {
+        return res.status(400).json({ error: 'userName are required' });
+    }
+
+    try {
         // Fetch the user ID from the username first
-        utils.getUserTwitterId(req.session.accessToken, req.session.accessTokenSecret)
-            .then(userId => {
-                // Fetch the target user's ID from the username
-                utils.fetchUserId(userName, req.session.accessToken, req.session.accessTokenSecret)
-                    .then(targetUserId => {
-                        // Now check if the user is followed using the fetched user ID
-                        utils.checkIfFollowed(req.session.accessToken, req.session.accessTokenSecret, userId, targetUserId)
-                            .then(result => res.json(result))
-                            .catch(error => {
-                                const statusCode = error.statusCode || 500;
-                                res.status(statusCode).json({ error: error.toString() });
-                            });
-                    })
-                    .catch(error => {
-                        const statusCode = error.statusCode || 500;
-                        res.status(statusCode).json({ error: error.toString() });
-                    });
-                })
-                .catch(error => res.status(500).json({ error: error.message }));
-    } else {
-        res.status(401).json({ error: 'Authentication required' });
+        const userId = await utils.getUserTwitterId(req.session.accessToken, req.session.accessTokenSecret);
+
+        // Fetch the target user's ID from the username
+        const targetUserId = await utils.fetchUserId(userName, req.session.accessToken, req.session.accessTokenSecret);
+
+        // Now check if the user is followed using the fetched user ID
+        const result = await utils.checkIfFollowed(req.session.accessToken, req.session.accessTokenSecret, userId, targetUserId);
+
+        res.json(result);
+    } catch (error) {
+        const statusCode = error.statusCode || 500;
+        res.status(statusCode).json({ error: error.toString() });
     }
 });
 app.options('/check-follow', cors(corsOptions)); // Enable preflight request for this endpoint
 
-app.get('/check-like', (req, res) => {
+app.get('/check-like', async (req, res) => {
     if (!req.session) {
         return res.status(400).send("No session found");
     }
     console.log("Endpoint hit: /check-like");
 
-    if (req.session.accessToken && req.session.accessTokenSecret) {
-        const { tweetId } = req.query;
-        if (!tweetId) {
-            return res.status(400).json({ error: 'tweetId are required' });
-        }
+    if (!(req.session.accessToken && req.session.accessTokenSecret)) {
+        return res.status(401).json({ error: 'Authentication required' });
+    }
 
+    const { tweetId } = req.query;
+    if (!tweetId) {
+        return res.status(400).json({ error: 'tweetId are required' });
+    }
+
+    try {
         // Get the current user's Twitter ID
-        utils.getUserTwitterId(req.session.accessToken, req.session.accessTokenSecret)
-            .then(userId => {
-                // With the user ID, proceed to retweet the specified tweet
-                utils.checkIfLiked(req.session.accessToken, req.session.accessTokenSecret, userId, tweetId)
-                    .then(result => res.json(result))
-                    .catch(error => {
-                        const statusCode = error.statusCode || 500;
-                        res.status(statusCode).json({ error: error.toString() });
-                    });
-                })
-                .catch(error => res.status(500).json({ error: error.toString() }));
-    } else {
-        res.status(401).json({ error: 'Authentication required' });
+        const userId = await utils.getUserTwitterId(req.session.accessToken, req.session.accessTokenSecret);
+
+        // With the user ID, proceed to retweet the specified tweet
+        const result = await utils.checkIfLiked(req.session.accessToken, req.session.accessTokenSecret, userId, tweetId);
+        res.json(result);
+    } catch (error) {
+        const statusCode = error.statusCode || 500;
+        res.status(statusCode).json({ error: error.toString() });
     }
 });
 app.options('/check-like', cors(corsOptions)); // Enable preflight request for this endpoint
 
-app.get('/check-bookmark', (req, res) => {
+app.get('/check-bookmark', async (req, res) => {
     if (!req.session) {
         return res.status(400).send("No session found");
     }
     console.log("Endpoint hit: /check-bookmark");
 
-    if (req.session.accessToken && req.session.accessTokenSecret) {
-        const { tweetId } = req.query;
+    if (!(req.session.accessToken && req.session.accessTokenSecret)) {
+        return res.status(401).json({ error: 'Authentication required' });
+    }
 
+    const { tweetId } = req.query;
+    if (!tweetId) {
+        console.log("tweetId not found");
+        return res.status(400).json({ error: 'tweetId is required' });
+    }
+
+    try {
         // Fetch the user ID from the username first
-        utils.getUserTwitterId(req.session.accessToken, req.session.accessTokenSecret)
-            .then(userId => {
-                utils.checkIfBookmarked(req.session.accessToken, req.session.accessTokenSecret, userId, tweetId)
-                    .then(result => res.json(result))
-                    .catch(error => {
-                        const statusCode = error.statusCode || 500;
-                        res.status(statusCode).json({ error: error.toString() });
-                    });
-                })
-                .catch(error => res.status(500).json({ error: error.message }));
-    } else {
-        res.status(401).json({ error: 'Authentication required' });
+        const userId = await utils.getUserTwitterId(req.session.accessToken, req.session.accessTokenSecret);
+        const result = await utils.checkIfBookmarked(req.session.accessToken, req.session.accessTokenSecret, userId, tweetId);
+        res.json(result);
+    } catch (error) {
+        const statusCode = error.statusCode || 500;
+        res.status(statusCode).json({ error: error.toString() });
     }
 });
 app.options('/check-bookmark', cors(corsOptions)); // Enable preflight request for this endpoint
 
-app.get('/retweet', (req, res) => {
+app.get('/retweet', async (req, res) => {
     if (!req.session) {
         return res.status(400).send("No session found");
     }
     console.log("Endpoint hit: /retweet");
 
-    if (req.session.accessToken && req.session.accessTokenSecret) {
-        const { tweetId } = req.query;
-        if (!tweetId) {
-            console.log("tweetId not found");
-            return res.status(400).json({ error: 'tweetId is required' });
+    if (!(req.session.accessToken && req.session.accessTokenSecret)) {
+        return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    const { tweetId } = req.query;
+    if (!tweetId) {
+        console.log("tweetId not found");
+        return res.status(400).json({ error: 'tweetId is required' });
+    }
+
+    try {
+        // Get the current user's Twitter ID
+        const userId = await utils.getUserTwitterId(req.session.accessToken, req.session.accessTokenSecret);
+        console.log("Current User ID is:", userId);
+
+        // Check if the tweet has been retweeted by the user
+        const result = await utils.checkIfRetweeted(req.session.accessToken, req.session.accessTokenSecret, userId, tweetId);
+        if (result.isRetweeted) {
+            console.log("Tweet has been retweeted before");
+            return res.json({ status: 'success', message: 'Tweet has been retweeted before' });
         }
 
-        // Get the current user's Twitter ID
-        utils.getUserTwitterId(req.session.accessToken, req.session.accessTokenSecret)
-            .then(userId => {
-                console.log("Current User ID is:", userId);
-                // Check if the tweet has been retweeted by the user
-                utils.checkIfRetweeted(req.session.accessToken, req.session.accessTokenSecret, userId, tweetId)
-                    .then(result => {
-                        if (result.isRetweeted) {
-                            console.log("Tweet has been retweeted before");
-                            return res.json({ status: 'success', message: 'Tweet has been retweeted before' });
-                        }
-                        // With the user ID, proceed to retweet the specified tweet
-                        utils.retweetTweet(req.session.accessToken, req.session.accessTokenSecret, userId, tweetId)
-                            .then(response => res.json(response))
-                            .catch(error => {
-                                const statusCode = error.statusCode || 500;
-                                res.status(statusCode).json({ error: error.toString() });
-                            });
-                    })
-                    .catch(error => {
-                        const statusCode = error.statusCode || 500;
-                        res.status(statusCode).json({ error: error.toString() });
-                    });
-            })
-            .catch(error => res.status(500).json({ error: error.toString() }));
-    } else {
-        res.status(401).json({ error: 'Authentication required' });
+        // With the user ID, proceed to retweet the specified tweet
+        const response = await utils.retweetTweet(req.session.accessToken, req.session.accessTokenSecret, userId, tweetId);
+        res.json(response);
+    } catch (error) {
+        const statusCode = error.statusCode || 500;
+        res.status(statusCode).json({ error: error.toString() });
     }
 });
 app.options('/retweet', cors(corsOptions)); // Enable preflight request for this endpoint
 
-app.get('/like', (req, res) => {
+app.get('/like', async (req, res) => {
     if (!req.session) {
         return res.status(400).send("No session found");
     }
     console.log("Endpoint hit: /like");
 
-    if (req.session.accessToken && req.session.accessTokenSecret) {
-        const { tweetId } = req.query;
-        if (!tweetId) {
-            console.log("tweetId not found");
-            return res.status(400).json({ error: 'tweetId is required' });
+    if (!(req.session.accessToken && req.session.accessTokenSecret)) {
+        return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    const { tweetId } = req.query;
+    if (!tweetId) {
+        console.log("tweetId not found");
+        return res.status(400).json({ error: 'tweetId is required' });
+    }
+
+    try {
+        // Fetch the user ID from the username
+        const userId = await utils.getUserTwitterId(req.session.accessToken, req.session.accessTokenSecret);
+
+        // Check if the tweet has been liked by the user
+        const result = await utils.checkIfLiked(req.session.accessToken, req.session.accessTokenSecret, userId, tweetId);
+
+        if (result.isLiked) {
+            console.log("Tweet has been liked before");
+            return res.json({ status: 'success', message: 'Tweet has been liked before' });
         }
 
-        // Fetch the user ID from the username
-        utils.getUserTwitterId(req.session.accessToken, req.session.accessTokenSecret)
-            .then(userId => {
-                // Check if the tweet has been liked by the user
-                utils.checkIfLiked(req.session.accessToken, req.session.accessTokenSecret, userId, tweetId)
-                    .then(result => {
-                        if (result.isLiked) {
-                            console.log("Tweet has been liked before");
-                            return res.json({ status: 'success', message: 'Tweet has been liked before' });
-                        }
-                        // Use the userId to like the tweet
-                        utils.likeTweet(req.session.accessToken, req.session.accessTokenSecret, userId, tweetId)
-                            .then(response => res.json(response))
-                            .catch(error => {
-                                const statusCode = error.statusCode || 500;
-                                res.status(statusCode).json({ error: error.toString() });
-                            });
-                    })
-                    .catch(error => {
-                        const statusCode = error.statusCode || 500;
-                        res.status(statusCode).json({ error: error.toString() });
-                    });
-            })
-            .catch(error => res.status(500).json({ error: error.toString() }));
-    } else {
-        res.status(401).json({ error: 'Authentication required' });
+        // Use the userId to like the tweet
+        const response = await utils.likeTweet(req.session.accessToken, req.session.accessTokenSecret, userId, tweetId);
+        res.json(response);
+    } catch (error) {
+        const statusCode = error.statusCode || 500;
+        res.status(statusCode).json({ error: error.toString() });
     }
 });
 app.options('/like', cors(corsOptions)); // Enable preflight request for this endpoint
 
-app.get('/bookmark', (req, res) => {
+app.get('/bookmark', async (req, res) => {
     if (!req.session) {
         return res.status(400).send("No session found");
     }
     console.log("Endpoint hit: /bookmark");
 
-    if (req.session.accessToken && req.session.accessTokenSecret) {
-        const { tweetId } = req.query;
-        if (!tweetId) {
-            console.log("tweetId not found");
-            return res.status(400).json({ error: 'tweetId is required' });
+    if (!(req.session.accessToken && req.session.accessTokenSecret)) {
+        return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    const { tweetId } = req.query;
+    if (!tweetId) {
+        console.log("tweetId not found");
+        return res.status(400).json({ error: 'tweetId is required' });
+    }
+
+    try {
+        // Fetch the user ID from the username
+        const userId = await utils.getUserTwitterId(req.session.accessToken, req.session.accessTokenSecret);
+
+        // Check if the tweet has been bookmarked by the user
+        const result = await utils.checkIfBookmarked(req.session.accessToken, req.session.accessTokenSecret, userId, tweetId);
+
+        if (result.isBookmarked) {
+            console.log("Tweet has been bookmarked before");
+            return res.json({ status: 'success', message: 'Tweet has been bookmarked before' });
         }
 
-        // Fetch the user ID from the username
-        utils.getUserTwitterId(req.session.accessToken, req.session.accessTokenSecret)
-            .then(userId => {
-                // Check if the tweet has been bookmarked by the user
-                utils.checkIfBookmarked(req.session.accessToken, req.session.accessTokenSecret, userId, tweetId)
-                    .then(result => {
-                        if (result.isBookmarked) {
-                            console.log("Tweet has been bookmarked before");
-                            return res.json({ status: 'success', message: 'Tweet has been bookmarked before' });
-                        }
-                        // Use the userId to bookmark the tweet
-                        utils.bookmarkTweet(req.session.accessToken, req.session.accessTokenSecret, userId, tweetId)
-                            .then(response => res.json(response))
-                            .catch(error => {
-                                const statusCode = error.statusCode || 500;
-                                res.status(statusCode).json({ error: error.toString() });
-                            });
-                    })
-                    .catch(error => {
-                        const statusCode = error.statusCode || 500;
-                        res.status(statusCode).json({ error: error.toString() });
-                    });
-            })
-            .catch(error => res.status(500).json({ error: error.toString() }));
-    } else {
-        res.status(401).json({ error: 'Authentication required' });
+        // Use the userId to bookmark the tweet
+        const response = await utils.bookmarkTweet(req.session.accessToken, req.session.accessTokenSecret, userId, tweetId);
+        res.json(response);
+    } catch (error) {
+        const statusCode = error.statusCode || 500;
+        res.status(statusCode).json({ error: error.toString() });
     }
 });
 app.options('/bookmark', cors(corsOptions)); // Enable preflight request for this endpoint
 
-app.get('/follow-us', (req, res) => {
+app.get('/follow-us', async (req, res) => {
     if (!req.session) {
         return res.status(400).send("No session found");
     }
     console.log("Endpoint hit: /follow-us");
 
-    if (req.session.accessToken && req.session.accessTokenSecret) {
-        const { userName } = req.query;
-        if (!userName) {
-            console.log("tweetId not found");
-            return res.status(400).json({ error: 'userName are required' });
-        }
+    if (!(req.session.accessToken && req.session.accessTokenSecret)) {
+        return res.status(401).json({ error: 'Authentication required' });
+    }
 
+    const { userName } = req.query;
+    if (!userName) {
+        console.log("tweetId not found");
+        return res.status(400).json({ error: 'userName are required' });
+    }
+
+    try {
         // Fetch the user ID from the username
-        utils.getUserTwitterId(req.session.accessToken, req.session.accessTokenSecret)
-            .then(userId => {
-                // Fetch the target user's ID from the username
-                utils.fetchUserId(userName, req.session.accessToken, req.session.accessTokenSecret)
-                    .then(targetUserId => {
-                        // Use the userId to follow the user
-                        utils.followUser(req.session.accessToken, req.session.accessTokenSecret, userId, targetUserId)
-                            .then(response => res.json(response))
-                            .catch(error => {
-                                const statusCode = error.statusCode || 500;
-                                res.status(statusCode).json({ error: error.toString() });
-                            });
-                    })
-                    .catch(error => {
-                        const statusCode = error.statusCode || 500;
-                        res.status(statusCode).json({ error: error.toString() });
-                    });
-            })
-            .catch(error => res.status(500).json({ error: error.message }));
-    } else {
-        res.status(401).json({ error: 'Authentication required' });
+        const userId = await utils.getUserTwitterId(req.session.accessToken, req.session.accessTokenSecret);
+
+        // Fetch the target user's ID from the username
+        const targetUserId = await utils.fetchUserId(userName, req.session.accessToken, req.session.accessTokenSecret);
+
+        // Use the userId to follow the user
+        const response = await utils.followUser(req.session.accessToken, req.session.accessTokenSecret, userId, targetUserId);
+
+        res.json(response);
+    } catch (error) {
+        const statusCode = error.statusCode || 500;
+        res.status(statusCode).json({ error: error.toString() });
     }
 });
 app.options('/follow-us', cors(corsOptions)); // Enable preflight request for this endpoint
 
-app.get('/check-airdrop', (req, res) => {
+app.get('/check-airdrop', async (req, res) => {
     if (!req.session) {
         return res.status(400).send("No session found");
     }
     console.log("Endpoint hit: /check-airdrop");
 
-    if (req.session.accessToken && req.session.accessTokenSecret) {
-        const { address } = req.query;
-        if (!address) {
-            console.log("Address not found");
-            return res.status(400).json({ error: 'Address are required' });
-        }
+    if (!(req.session.accessToken && req.session.accessTokenSecret)) {
+        return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    const { address } = req.query;
+    if (!address) {
+        console.log("Address not found");
+        return res.status(400).json({ error: 'Address is required' });
+    }
+
+    try {
 
         // Fetch the user ID from the username first
-        utils.getUserTwitterId(req.session.accessToken, req.session.accessTokenSecret)
-            .then(userId => {
-                utils.checkIfClaimedAirdrop(userId, address)
-                    .then(result => res.json(result))
-                    .catch(error => res.status(500).json({
-                        error: "Failed to check airdrop status",
-                        details: error,
-                    }));
-                })
-                .catch(error => res.status(500).json({ error: error.message }));
-    } else {
-        res.status(401).json({ error: 'Authentication required' });
+        const userId = await utils.getUserTwitterId(req.session.accessToken, req.session.accessTokenSecret);
+        const result = await utils.checkIfClaimedAirdrop(userId, address);
+        res.json(result);
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to check airdrop status', details: error });
     }
 });
 app.options('/check-airdrop', cors(corsOptions)); // Enable preflight request for this endpoint
 
-app.get('/log-airdrop', (req, res) => {
+app.get('/log-airdrop', async (req, res) => {
     if (!req.session) {
         return res.status(400).send("No session found");
     }
     console.log("Endpoint hit: /log-airdrop");
 
-    if (req.session.accessToken && req.session.accessTokenSecret) {
-        const { address } = req.query;
-        if (!address) {
-            console.log("Address not found");
-            return res.status(400).json({ error: 'Address are required' });
-        }
+    if (!(req.session.accessToken && req.session.accessTokenSecret)) {
+        return res.status(401).json({ error: 'Authentication required' });
+    }
 
-        // Fetch the user ID from the username first
-        utils.getUserTwitterId(req.session.accessToken, req.session.accessTokenSecret)
-            .then(userId => {
-                utils.logUserAirdrop(userId, address)
-                    .then(result => res.json(result))
-                    .catch(error => res.status(500).json({
-                        error: "Failed to log airdrop status",
-                        details: error,
-                    }));
-                })
-                .catch(error => res.status(500).json({ error: error.message }));
-    } else {
-        res.status(401).json({ error: 'Authentication required' });
+    const { address } = req.query;
+    if (!address) {
+        console.log("Address not found");
+        return res.status(400).json({ error: 'Address is required' });
+    }
+
+    try {
+        const userId = await utils.getUserTwitterId(req.session.accessToken, req.session.accessTokenSecret);
+        const result = await utils.logUserAirdrop(userId, address);
+        res.json(result);
+    } catch (error) {
+        res.status(500).json({
+            error: "Failed to log airdrop status",
+            details: error,
+        });
     }
 });
 app.options('/log-airdrop', cors(corsOptions)); // Enable preflight request for this endpoint
@@ -544,218 +517,199 @@ app.get('/check-airdrop-amount', async (req, res) => {
     }
     console.log("Endpoint hit: /check-airdrop-amount");
 
-    if (req.session.accessToken && req.session.accessTokenSecret) {
-        const { address, promotionCode, step } = req.query;
-        if (!address || !step) {
-            console.log("Address or step not found");
-            return res.status(400).json({ error: 'Address and step are required' });
-        }
-        const stepNumber = Number(step);
-        if (!Number.isInteger(stepNumber) || ![0, 1, 2, 3, 4].includes(stepNumber)) {
-            console.log("Step is not a valid number");
-            return res.status(400).json({ error: 'Step must be a number and value is 0,1,2,3,4' });
-        }
+    if (!(req.session.accessToken && req.session.accessTokenSecret)) {
+        return res.status(401).json({ error: 'Authentication required' });
+    }
 
-        // TODO: Check if the user address has purchased the first generation of $Lotso tokens
-        try {
-            const purchaseResult = await utils.checkIfPurchased(address);
-            let airdrop_amount = 0;
-    
-            if (!purchaseResult.purchase) {
-                if (!promotionCode) {
-                    console.log("Promotion code not found");
-                    return res.status(400).json({ error: 'Promotion code is required' });
-                }
-                try {
-                    const promoResult = await utils.usePromotionCode(address, promotionCode);
-                    if (promoResult.valid) {
-                        airdrop_amount = stepNumber * parseInt(airdropPerStep, 10);
-                        console.log('Promotion code applied successfully:', promoResult);
-                    } else {
-                        console.error('Invalid promotion code:', address);
-                        return res.status(400).json({
-                            error: 'Invalid promotion code',
-                        });
-                    }
-                } catch (promoError) {
-                    console.error('Failed to apply promotion code:', promoError);
-                    return res.status(500).json({
-                        error: 'Failed to apply promotion code',
-                        details: promoError,
+    const { address, promotionCode, step } = req.query;
+    if (!address || !step) {
+        console.log("Address or step not found");
+        return res.status(400).json({ error: 'Address and step are required' });
+    }
+    const stepNumber = Number(step);
+    if (!Number.isInteger(stepNumber) || ![0, 1, 2, 3, 4].includes(stepNumber)) {
+        console.log("Step is not a valid number");
+        return res.status(400).json({ error: 'Step must be a number and value is 0,1,2,3,4' });
+    }
+
+    // Check if the user address has purchased the first generation of $Lotso tokens
+    try {
+        const purchaseResult = await utils.checkIfPurchased(address);
+        let airdrop_amount = 0;
+
+        if (!purchaseResult.purchase) {
+            if (!promotionCode) {
+                console.log("Promotion code not found");
+                return res.status(400).json({ error: 'Promotion code is required' });
+            }
+            try {
+                const promoResult = await utils.usePromotionCode(address, promotionCode);
+                if (promoResult.valid) {
+                    airdrop_amount = stepNumber * parseInt(airdropPerStep, 10);
+                    console.log('Promotion code applied successfully:', promoResult);
+                } else {
+                    console.error('Invalid promotion code:', address);
+                    return res.status(400).json({
+                        error: 'Invalid promotion code',
                     });
                 }
-            } else {
-                // For the buyer, the airdrop amount is fixed (e.g., 300,000)
-                airdrop_amount = parseInt(lotsoPurchasedUserAmount, 10);
+            } catch (promoError) {
+                console.error('Failed to apply promotion code:', promoError);
+                return res.status(500).json({
+                    error: 'Failed to apply promotion code',
+                    details: promoError,
+                });
             }
-    
-            // Prepare data for the POST request
-            const postData = {
-                address,
-                purchase: purchaseResult.purchase,
-                amount: airdrop_amount,
-            };
-    
-            // Perform a HTTP POST request
-            const response = await fetch(airdropCountAddress, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(postData),
-            });
-            const data = await response.json();
-            console.log('Airdrop checking response:', data);
-            res.json(data);
-        } catch (error) {
-            console.error('Error in handling the request:', error);
-            res.status(500).json({
-                error: "Failed to handle the request",
-                details: error.toString(),
-            });
+        } else {
+            // For the buyer, the airdrop amount is fixed (e.g., 300,000)
+            airdrop_amount = parseInt(lotsoPurchasedUserAmount, 10);
         }
-    } else {
-        res.status(401).json({ error: 'Authentication required' });
+
+        // Prepare data for the POST request
+        const postData = {
+            address,
+            purchase: purchaseResult.purchase,
+            amount: airdrop_amount,
+        };
+
+        // Perform a HTTP POST request
+        const response = await fetch(airdropCountAddress, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(postData),
+        });
+        const data = await response.json();
+        console.log('Airdrop checking response:', data);
+        res.json(data);
+    } catch (error) {
+        console.error('Error in handling the request:', error);
+        res.status(500).json({
+            error: "Failed to handle the request",
+            details: error.toString(),
+        });
     }
 });
 app.options('/check-airdrop-amount', cors(corsOptions)); // Enable preflight request for this endpoint
 
 // This endpoint will only be trigger when the user clicks the "Generate Promotion Code" button
-app.get('/generate-promotion-code', (req, res) => {
+app.get('/generate-promotion-code', async (req, res) => {
     if (!req.session) {
         return res.status(400).send("No session found");
     }
     console.log("Endpoint hit: /generate-promotion-code");
 
-    if (req.session.accessToken && req.session.accessTokenSecret) {
-        const { address } = req.query;
-        if (!address) {
-            console.log("Address not found");
-            return res.status(400).json({ error: 'Address are required' });
+    if (!(req.session.accessToken && req.session.accessTokenSecret)) {
+        return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    const { address } = req.query;
+    if (!address) {
+        console.log("Address not found");
+        return res.status(400).json({ error: 'Address are required' });
+    }
+
+    try {
+        const userId = await utils.getUserTwitterId(req.session.accessToken, req.session.accessTokenSecret);
+        const result = await utils.checkIfFinished(userId);
+        if (result.isFinished) {
+            console.log("User has completed all required steps and is eligible for obtaining the promotion code.");
+            const promotionCode = await utils.generatePromotionCode(address);
+            if (promotionCode) {
+                res.json({ promotion_code: promotionCode });
+            } else {
+                res.status(500).json({ error: 'Failed to generate promotion code' });
+            }
+        } else {
+            res.json(result);
         }
-        // Fetch the user ID from the username first
-        utils.getUserTwitterId(req.session.accessToken, req.session.accessTokenSecret)
-            .then(userId => {
-                utils.checkIfFinished(userId)
-                    .then(result => {
-                        if (result.isFinished) {
-                            console.log("User has completed all required steps and is eligible for obtaining the promotion code.");
-                            utils.generatePromotionCode(address)
-                                .then(promotionCode => {
-                                    if (promotionCode) {
-                                        res.json({ promotion_code: promotionCode });
-                                    } else {
-                                        res.status(500).json({ error: 'Failed to generate promotion code' });
-                                    }
-                                })
-                                .catch(error => res.status(500).json({ error: 'Failed to generate promotion code', details: error }));
-                        } else {
-                            res.json(result);
-                        }
-                    })
-                    .catch(error => res.status(500).json({
-                        error: "Failed to check step status",
-                        details: error,
-                    }));
-            })
-            .catch(error => res.status(500).json({ error: error.message }));
-    } else {
-        res.status(401).json({ error: 'Authentication required' });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
     }
 });
 app.options('/generate-promotion-code', cors(corsOptions)); // Enable preflight request for this endpoint
 
-app.get('/send-airdrop-parent', (req, res) => {
+app.get('/send-airdrop-parent', async (req, res) => {
     if (!req.session) {
         return res.status(400).send("No session found");
     }
     console.log("Endpoint hit: /send-airdrop-parent");
 
-    if (req.session.accessToken && req.session.accessTokenSecret) {
-        const { address } = req.query;
-        if (!address) {
-            console.log("Address not found");
-            return res.status(400).json({ error: 'Address is required' });
+    if (!(req.session.accessToken && req.session.accessTokenSecret)) {
+        return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    const { address } = req.query;
+    if (!address) {
+        console.log("Address not found");
+        return res.status(400).json({ error: 'Address is required' });
+    }
+
+    try {
+        const { parentAddress } = await utils.rewardParentUser(address);
+        const { appendAmount, reward } = await utils.checkRewardParentUser(parentAddress, airdropPerPerson, {
+            airdropRewardMaxForBuyer, airdropRewardMaxForNotBuyer,
+        });
+
+        console.log('The append airdrop amount:', appendAmount);
+        if (!reward) {
+            console.log('The total airdrop amount is exceeded the limitation');
+            return res.json({ reward });
         }
-        utils.rewardParentUser(address)
-            .then(({ parentAddress }) => {
-                // Check the limitation of reward for this parent user
-                utils.checkRewardParentUser(parentAddress, airdropPerPerson, { airdropRewardMaxForBuyer, airdropRewardMaxForNotBuyer })
-                    .then(({ appendAmount, reward }) => {
-                        console.log('The append airdrop amount:', appendAmount);
-                        if (!reward) {
-                            console.log('The total airdrop amount is exceeded the limitation');
-                            return res.json({ reward });
-                        }
 
-                        // Perform a HTTP GET request to the airdrop server, endpoint: /append_airdrop
-                        const apiUrl = `${airdropRewardAddress}?address=${encodeURIComponent(parentAddress)}&amount=${encodeURIComponent(appendAmount)}`;
-                        fetch(apiUrl)
-                            .then(response => response.json()) // Parse the JSON response
-                            .then(({ airdrop_amount: logAirdropAmount }) => {
-                                console.log('Airdrop checking response:', logAirdropAmount);
-                                if (!logAirdropAmount) {
-                                    console.log('The total airdrop amount is exceeded the limitation:', logAirdropAmount);
-                                    return res.json({ airdrop_amount: logAirdropAmount });
-                                }
+        const apiUrl = `${airdropRewardAddress}?address=${encodeURIComponent(parentAddress)}&amount=${encodeURIComponent(appendAmount)}`;
+        const response = await fetch(apiUrl);
+        const { airdrop_amount: logAirdropAmount } = await response.json();
 
-                                // Append the airdrop reward to the parent user
-                                utils.appendRewardParentUser(parentAddress, logAirdropAmount)
-                                    .then(({ totalRewardAmount: rewardAmount }) => {
-                                        console.log('Parent rewarded successfully:', rewardAmount);
-                                    })
-                                    .catch(error => {
-                                        console.error('Failed to reward parent:', error);
-                                    });
+        console.log('Airdrop checking response:', logAirdropAmount);
+        if (!logAirdropAmount) {
+            console.log('The total airdrop amount is exceeded the limitation:', logAirdropAmount);
+            return res.json({ airdrop_amount: logAirdropAmount });
+        }
 
-                                res.json(apiUrl);
-                            })
-                            .catch(err => {
-                                console.error('Error checking promotion:', err.message);
-                                res.status(500).json({
-                                    error: "Failed to log promotion",
-                                    details: err.message,
-                            });
-                        });
-                    })
-                    .catch(error => {
-                        console.error('Failed to check reward parent:', error);
-                    });
-            })
-            .catch(error => {
-            res.status(500).json({
-                error: "Failed to reward parent",
-                details: error,
-            });
-            });
-    } else {
-        res.status(401).json({ error: 'Authentication required' });
+        const { totalRewardAmount: rewardAmount } = await utils.appendRewardParentUser(parentAddress, logAirdropAmount);
+        console.log('Parent rewarded successfully:', rewardAmount);
+
+        // TODO:
+        res.json({ success: true, apiUrl });
+    } catch (error) {
+        console.error('Error in handling the request:', error);
+        res.status(500).json({
+            error: "Failed to handle the request",
+            details: error.toString(),
+        });
     }
 });
+
 app.options('/send-airdrop-parent', cors(corsOptions)); // Enable preflight request for this endpoint
 
-app.get('/check-purchase', (req, res) => {
+app.get('/check-purchase', async (req, res) => {
     if (!req.session) {
         return res.status(400).send("No session found");
     }
     console.log("Endpoint hit: /check-purchase");
 
-    if (req.session.accessToken && req.session.accessTokenSecret) {
-        const { address } = req.query;
-        if (!address) {
-            console.log("Address not found");
-            return res.status(400).json({ error: 'Address are required' });
-        }
+    if (!req.session.accessToken || !req.session.accessTokenSecret) {
+        return res.status(401).json({ error: 'Authentication required' });
+    }
 
+    const { address } = req.query;
+    if (!address) {
+        console.log("Address not found");
+        return res.status(400).json({ error: 'Address are required' });
+    }
+
+    try {
         // Check if the user address has purchased the first generation of $Lotso tokens
-        utils.checkIfPurchased(address)
-            .then(result => res.json(result))
-            .catch(error => res.status(500).json({
-                error: "Failed to check purchase",
-                details: error,
-            }));
-    } else {
-        res.status(401).json({ error: 'Authentication required' });
+        const result = await utils.checkIfPurchased(address);
+        res.json(result);
+    } catch (error) {
+        console.error("Failed to check purchase:", error);
+        res.status(500).json({
+            error: "Failed to check purchase",
+            details: error,
+        });
     }
 });
 app.options('/check-purchase', cors(corsOptions)); // Enable preflight request for this endpoint
