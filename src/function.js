@@ -1122,7 +1122,7 @@ async function rewardParentUser(userAddress) {
  * @param {object} airdropRewardMaxForBuyer - The maximum reward amount for a buyer.
  * @param {object} airdropRewardMaxForNotBuyer - The maximum reward amount for a non-buyer.
  * 
- * @return {object} - The append amount and reward status.
+ * @return {object} - The append amount, reward status and max reward amount.
  * 
  * @note This function assumes that there is a MongoDB connection named `userDbConnection` and a collection named `users`.
  */
@@ -1141,7 +1141,7 @@ async function checkRewardParentUser(userAddress, airdropAmount, { airdropReward
             appendAmount = Math.min(maxReward - docParent.totalRewardAmount, parseInt(airdropAmount, 10));
         }
 
-        return ({ appendAmount, reward: appendAmount > 0 });
+        return ({ appendAmount, reward: appendAmount > 0, maxReward });
     } catch (error) {
         console.error('Failed to check reward for parent user:', error);
         throw new Error('Error checking reward for parent user');
@@ -1152,7 +1152,7 @@ async function checkRewardParentUser(userAddress, airdropAmount, { airdropReward
  * @brief Appends the reward amount to the total reward amount of a parent user.
  * 
  * @param {string} userAddress - The address of the parent user.
- * @param {string} rewardAmount - The amount of the reward to be appended.
+ * @param {string} rewardAmount - The amount of the reward in total.
  * 
  * @return {Object|null} - The updated total reward amount of the parent user, or null if no promotion code is found.
  * 

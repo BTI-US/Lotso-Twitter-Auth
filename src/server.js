@@ -470,7 +470,6 @@ app.get('/check-airdrop', async (req, res) => {
     }
 
     try {
-
         // Fetch the user ID from the username first
         const userId = await utils.getUserTwitterId(req.session.accessToken, req.session.accessTokenSecret);
         const result = await utils.checkIfClaimedAirdrop(userId, address);
@@ -572,7 +571,7 @@ app.get('/check-airdrop-amount', async (req, res) => {
             amount: airdrop_amount,
         };
 
-        // Perform a HTTP POST request
+        // Endpoint: /set_airdrop
         const response = await fetch(airdropCountAddress, {
             method: 'POST',
             headers: {
@@ -580,6 +579,7 @@ app.get('/check-airdrop-amount', async (req, res) => {
             },
             body: JSON.stringify(postData),
         });
+
         const data = await response.json();
         console.log('Airdrop checking response:', data);
         res.json(data);
@@ -648,31 +648,46 @@ app.get('/send-airdrop-parent', async (req, res) => {
 
     try {
         const { parentAddress } = await utils.rewardParentUser(address);
-        const { appendAmount, reward } = await utils.checkRewardParentUser(parentAddress, airdropPerPerson, {
+        const { appendAmount, reward, maxReward } = await utils.checkRewardParentUser(parentAddress, airdropPerPerson, {
             airdropRewardMaxForBuyer, airdropRewardMaxForNotBuyer,
         });
 
         console.log('The append airdrop amount:', appendAmount);
+        // First check: Do not send the request if the airdrop amount exceeds the maximum reward
         if (!reward) {
             console.log('The total airdrop amount is exceeded the limitation');
             return res.json({ reward });
         }
 
-        const apiUrl = `${airdropRewardAddress}?address=${encodeURIComponent(parentAddress)}&amount=${encodeURIComponent(appendAmount)}`;
-        const response = await fetch(apiUrl);
-        const { airdrop_amount: logAirdropAmount } = await response.json();
+        const data = {
+            address: parentAddress,
+            amount: appendAmount,
+        };
+
+        // Endpoint: /append_airdrop
+        const response = await fetch(airdropRewardAddress, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(data),
+        });
+
+        const responseData = await response.json();
+        const logAirdropAmount = responseData.data.airdrop_count;
 
         console.log('Airdrop checking response:', logAirdropAmount);
-        if (!logAirdropAmount) {
+        // Second check: Do not log the airdrop amount to parent user if it exceeds the maximum reward
+        if (logAirdropAmount > maxReward) {
             console.log('The total airdrop amount is exceeded the limitation:', logAirdropAmount);
-            return res.json({ airdrop_amount: logAirdropAmount });
+            return res.json(responseData);
         }
 
         const { totalRewardAmount: rewardAmount } = await utils.appendRewardParentUser(parentAddress, logAirdropAmount);
         console.log('Parent rewarded successfully:', rewardAmount);
 
-        // TODO:
-        res.json({ success: true, apiUrl });
+        // Return the response from the airdrop API
+        res.json(responseData);
     } catch (error) {
         console.error('Error in handling the request:', error);
         res.status(500).json({
@@ -681,7 +696,6 @@ app.get('/send-airdrop-parent', async (req, res) => {
         });
     }
 });
-
 app.options('/send-airdrop-parent', cors(corsOptions)); // Enable preflight request for this endpoint
 
 app.get('/check-purchase', async (req, res) => {
