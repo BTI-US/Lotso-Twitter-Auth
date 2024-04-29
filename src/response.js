@@ -36,7 +36,8 @@ const codeToErrorMap = {
     10034: 'Failed to check reward for parent user',
     10035: 'Error appending reward for parent user',
     10040: 'Failed to get user email',
-    10041: 'Error logging ssubsscription info',
+    10041: 'Error logging subscription info',
+    10050: 'Failed to get OAuth request token',
 };
 
 // Example usage:
@@ -70,3 +71,7 @@ function createResponse(code, message, data = {}) {
         data,
     };
 }
+
+module.exports = {
+    createResponse,
+};

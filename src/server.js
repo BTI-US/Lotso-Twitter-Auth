@@ -130,7 +130,13 @@ app.get('/start-auth', (req, res) => {
     oauth.getOAuthRequestToken({ oauth_callback: callbackUrl }, (error, oauthToken, oauthTokenSecret, results) => {
         if (error) {
             console.error('Failed to get OAuth request token:', error);
-            res.status(500).json(error);
+            // Create a new error object to avoid direct modification
+            const modifiedError = {
+                ...error,
+                code: 10050,
+            };
+            const response = createResponse(modifiedError.code, modifiedError.message);
+            res.status(500).json(response);
         } else {
             const url = `https://api.twitter.com/oauth/authenticate?oauth_token=${oauthToken}`;
             console.log('Redirecting user to Twitter authentication page');
@@ -159,7 +165,13 @@ app.get('/twitter-callback', (req, res) => {
         (error, accessToken, accessTokenSecret, results) => {
             if (error) {
                 console.error('Error getting OAuth access token:', error);
-                res.status(500).json({ status: 'failure', error });
+                // Create a new error object with the additional property
+                const modifiedError = {
+                    ...error,
+                    code: 10050,
+                };
+                const response = createResponse(modifiedError.code, modifiedError.message);
+                res.status(500).json(response);
             } else {
                 // Store tokens in the session
                 req.session.accessToken = accessToken;
@@ -177,15 +189,18 @@ app.options('/twitter-callback', cors(corsOptions)); // Enable preflight request
 app.get('/check-auth-status', (req, res) => {
     // Assume the session ID is automatically managed through the cookie
     if (!req.session) {
-        return res.status(400).send("No session found");
+        const response = createResponse(10003, 'No session found');
+        return res.status(400).json(response);
     }
     console.log("Endpoint hit: /check-auth-status");
 
     // Check if the session has the access token and token secret
     if (req.session.accessToken && req.session.accessTokenSecret) {
-        res.json({ isAuthenticated: true });
+        const response = createResponse(0, 'Success', { isAuthenticated: true });
+        res.json(response);
     } else {
-        res.status(401).json({ isAuthenticated: false });
+        const response = createResponse(0, 'Success', { isAuthenticated: false });
+        res.status(401).json(response);
     }
 });
 app.options('/check-auth-status', cors(corsOptions)); // Enable preflight request for this endpoint
@@ -838,6 +853,7 @@ https.createServer({
     console.log(`Listening on port ${SERVER_PORT}!`);
 
     // Send a GET request when the server starts
+    // Endpoint: /recipients_count
     fetch(airdropRecipientAddress)
         .then(res => res.json()) // parse response as JSON
         .then(body => {
