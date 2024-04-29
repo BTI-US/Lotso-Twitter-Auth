@@ -1053,17 +1053,20 @@ async function checkIfPurchased(userAddress) {
         const user = await userDbConnection.collection('users').findOne({ userAddress });
 
         if (!user) {
+            // Endpoint: /check_eligibility
             const apiUrl = `${airdropCheckAddress}?address=${encodeURIComponent(userAddress)}`;
             const response = await fetch(apiUrl);
             const data = await response.json();
-            const purchaseStatus = data.purchase;
+            const purchaseStatus = data.data;
             console.log('Eligibility checking response:', data);
-            if (purchaseStatus === undefined) throw new Error('Purchase status not defined for user');
+            if (data.code !== 0 || purchaseStatus === undefined) {
+                throw new Error(data.error || 'Error occurred while checking eligibility');
+            }
 
             // Insert a new user with the userAddress and isBuyer based on the API result
             await userDbConnection.collection('users').insertOne({
                 userAddress,
-                purchase: purchaseStatus === true, // TODO: Update this based on the actual response
+                purchase: purchaseStatus === true,
             });
 
             return { purchase: purchaseStatus === true };
