@@ -9,25 +9,31 @@
 
 ## Table of Contents
 
-- [Overview](#overview)
-- [Features](#features)
-- [Requirements](#requirements)
-- [Diagram](#diagram)
-  - [Explanation of the Diagram](#explanation-of-the-diagram)
-  - [Additional Details](#additional-details)
-- [Installation and Setup](#installation-and-setup)
-   - [Setting Up Twitter API Keys](#setting-up-twitter-api-keys)
-   - [Building the Docker Image](#building-the-docker-image)
-   - [Building the MongoDB Docker Image](#building-the-mongodb-docker-image)
-   - [Building the Redis Docker Image](#building-the-redis-docker-image)
-- [Running the Application](#running-the-application)
-- [How to Acquire Twitter API Keys](#how-to-acquire-twitter-api-keys)
-   - [User Authentication Settings](#user-authentication-settings)
-- [Usage](#usage)
-- [Testing](#testing)
-- [Contributing](#contributing)
-- [Milestones](#milestones)
-- [License](#license)
+- [Twitter OAuth Docker Project](#twitter-oauth-docker-project)
+  - [Table of Contents](#table-of-contents)
+  - [Overview](#overview)
+  - [Features](#features)
+  - [Requirements](#requirements)
+  - [Diagram](#diagram)
+    - [Twitter OAuth Sequence Diagram](#twitter-oauth-sequence-diagram)
+    - [Airdrop Sequence Diagram](#airdrop-sequence-diagram)
+    - [Explanation of the Twitter OAuth Diagram](#explanation-of-the-twitter-oauth-diagram)
+    - [Steps for Twitter OAuth (Frontend)](#steps-for-twitter-oauth-frontend)
+    - [Steps for Airdrop Sequence Diagram](#steps-for-airdrop-sequence-diagram)
+    - [Additional Details](#additional-details)
+  - [Installation and Setup](#installation-and-setup)
+    - [Setting Up Twitter API Keys](#setting-up-twitter-api-keys)
+    - [Building the Docker Image](#building-the-docker-image)
+    - [Building the MongoDB Docker Image](#building-the-mongodb-docker-image)
+    - [Building the Redis Docker Image](#building-the-redis-docker-image)
+  - [Running the Application](#running-the-application)
+  - [How to Acquire Twitter API Keys](#how-to-acquire-twitter-api-keys)
+  - [Twitter API Rate Limitations](#twitter-api-rate-limitations)
+    - [User Authentication Settings](#user-authentication-settings)
+  - [REST API Endpoints](#rest-api-endpoints)
+  - [Return Code](#return-code)
+  - [Milestones](#milestones)
+  - [License](#license)
 
 ## Overview
 This project implements a serverless function hosted within a Docker container to facilitate the OAuth authentication of Twitter users and enable interaction with Twitter's API directly from the frontend. The application allows users not only to check their tweets but also to engage with them by performing actions such as retweeting, liking, and sharing directly through the application.
@@ -289,7 +295,7 @@ Refer to the [Twitter API Rate Limiting](https://developer.twitter.com/en/docs/t
 4. In the `App info` field, set the `Callback URL / Redirect URL` to `https://oauth.btiplatform.com/twitter-callback`, and set the `Website URL` to `https://lotso.org`.
 5. Click 'Save'.
 
-## Usage
+## REST API Endpoints
 
 The application has the following endpoints:
 - `/start-auth`: Initiates the OAuth process.
@@ -312,11 +318,61 @@ The application has the following endpoints:
 
 Refer to the [API Documentation](https://github.com/BTI-US/Lotso-Twitter-Auth/wiki/REST_API_Endpoints) for detailed information on each endpoint.
 
+## Return Code
+
+Return code includes two parts: code and message, which are used to indicate the information returned by the HTTP API.
+
+All possible return codes are as follows:
+
+| Code    | Message                                                     |
+| ------- | ----------------------------------------------------------- |
+| `0`     | Success                                                     |
+| `10000` | Unknown error                                               |
+| `10001` | Wrong params                                                |
+| `10002` | Authentication failed                                       |
+| `10003` | No session found                                            |
+| `10004` | Address not found in request param or invalid address       |
+| `10005` | Tweet id not found in request param or invalid tweet id     |
+| `10006` | User name not found in request param or invalid user name   |
+| `10007` | Failed to get current user id                               |
+| `10008` | Failed to get user retweet status                           |
+| `10009` | Failed to get target user id                                |
+| `10010` | Failed to get user follow status                            |
+| `10011` | Failed to get user like status                              |
+| `10012` | Failed to get user bookmark status                          |
+| `10013` | Failed to retweet the tweet                                 |
+| `10014` | Failed to like the tweet                                    |
+| `10015` | Failed to follow the user                                   |
+| `10016` | Failed to bookmark the tweet                                |
+| `10017` | Tweet has been retweeted before                             |
+| `10018` | Tweet has been liked before                                 |
+| `10019` | User has been followed before                               |
+| `10020` | Tweet has been bookmarked before                            |
+| `10021` | Failed to check airdrop status                              |
+| `10022` | Failed to log airdrop claim                                 |
+| `10023` | Invalid step number                                         |
+| `10024` | Promotion code not found                                    |
+| `10025` | Invalid promotion code                                      |
+| `10026` | Error while processing promotion code                       |
+| `10027` | Error checking buyer                                        |
+| `10028` | Failed to check user interactions                           |
+| `10029` | Failed to generate and store promotion code                 |
+| `10030` | Failed to generate promotion code                           |
+| `10031` | User has not completed the required steps                   |
+| `10032` | The total airdrop amount is exceeded the limitation         |
+| `10033` | Error in rewarding parent user                              |
+| `10034` | Failed to check reward for parent user                      |
+| `10035` | Error appending reward for parent user                      |
+| `10040` | Failed to get user email                                    |
+| `10041` | Error logging subscription info                             |
+| `10050` | Failed to get OAuth request token                           |
+
 ## Milestones
 
 - [x] Implement OAuth with Twitter.
 - [x] Basic functionality to interact with Twitter API.
 - [x] Use MongoDB to log each user's actions.
+- [x] Implement airdrop functionality.
 
 ## License
 
