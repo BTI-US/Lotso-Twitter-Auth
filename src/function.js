@@ -193,11 +193,12 @@ async function logUserInteraction(userId, targetId, type, url, requestBody, resp
  * Otherwise, it returns false.
  */
 async function checkUserSteps(userId, requiredTypes, sameType = null) {
-    if (!userDbConnection) {
-        throw new Error("User database not connected");
-    }
-
     try {
+        if (!userDbConnection) {
+            console.error("User database not connected");
+            throw new Error("User database not connected");
+        }
+    
         // Query the database for unique types for the specific user
         const typesResult = await userDbConnection.collection('twitterInteractions').distinct('type', { userId });
         
@@ -239,11 +240,12 @@ async function checkUserSteps(userId, requiredTypes, sameType = null) {
  * The log entry is returned as an object, or null if no entry is found.
  */
 async function checkInteraction(userId, targetId, type, requestBody = null) {
-    if (!userDbConnection) {
-        return { status: false, message: "User database not connected" };
-    }
-
     try {
+        if (!userDbConnection) {
+            console.error("User database not connected");
+            throw new Error("User database not connected");
+        }
+    
         // Define the query to find the latest log entry for this user and type
         const query = { userId, targetId, type };
 
@@ -297,11 +299,12 @@ async function checkInteraction(userId, targetId, type, requestBody = null) {
  * If there is an error during the process, the error will be logged and rethrown to be handled in the calling function.
  */
 async function checkIfClaimedAirdrop(userId, userAddress) {
-    if (!userDbConnection) {
-        throw new Error("User database not connected");
-    }
-
     try {
+        if (!userDbConnection) {
+            console.error("User database not connected");
+            throw new Error("User database not connected");
+        }
+    
         // Define the query to find a matching entry in the airdropClaim collection
         const query = { userId, userAddress };
         const options = {
@@ -321,6 +324,7 @@ async function checkIfClaimedAirdrop(userId, userAddress) {
         return { hasClaimed: false };
     } catch (error) {
         console.error("Error checking if claimed airdrop:", error);
+        error.code = 10021;
         throw error;  // Rethrow the error to handle it in the calling function
     }
 }
@@ -342,11 +346,12 @@ async function checkIfClaimedAirdrop(userId, userAddress) {
  * or false if the claim was not logged due to a previous log entry for the userId.
  */
 async function logUserAirdrop(userId, userAddress) {
-    if (!userDbConnection) {
-        throw new Error("User database not connected");
-    }
-
     try {
+        if (!userDbConnection) {
+            console.error("User database not connected");
+            throw new Error("User database not connected");
+        }
+    
         // Check if any address has been logged for this userId
         const existingEntry = await userDbConnection.collection('airdropClaim').findOne({ userId });
     
@@ -372,6 +377,7 @@ async function logUserAirdrop(userId, userAddress) {
         return { isLogged: false };
     } catch (error) {
         console.error("Error logging airdrop claim:", error);
+        error.code = 10022;
         throw error;  // Rethrow the error to handle it in the calling function
     }
 }
@@ -406,8 +412,6 @@ async function makeAuthenticatedRequest(accessToken, accessTokenSecret, method, 
                 console.error("Error response:", error); // Log the full error
                 reject(error);
             } else {
-                // console.log("Successful response data:", data);
-                // console.log("Full response object:", response);
                 try {
                     resolve(JSON.parse(data));
                 } catch (parseError) {
@@ -462,6 +466,7 @@ async function getUserTwitterId(accessToken, accessTokenSecret) {
         return parsedData.id_str;  // Returns the string version of the user's ID
     } catch (error) {
         console.error("Error fetching or parsing data:", error);
+        error.code = 10007;
         throw error;  // Rethrow to maintain error chain
     }
 }
@@ -502,6 +507,7 @@ async function retweetTweet(accessToken, accessTokenSecret, userId, tweetId) {
     } catch (error) {
         await logTwitterInteraction(userId, 'retweet', url, body, null, error);
         console.error('Failed to retweet tweet:', error);
+        error.code = 10013;
         throw error;
     }
 }
@@ -548,6 +554,7 @@ async function likeTweet(accessToken, accessTokenSecret, userId, tweetId) {
         // Handle both errors from checkInteraction and makeAuthenticatedRequest
         await logTwitterInteraction(userId, 'like', url, body, null, error);
         console.error('Failed to like tweet:', error);
+        error.code = 10014;
         // Rethrow the error to ensure it can be handled by the caller
         throw error;
     }
@@ -595,6 +602,7 @@ async function bookmarkTweet(accessToken, accessTokenSecret, userId, tweetId) {
         // Handle both errors from checkInteraction and makeAuthenticatedRequest
         await logTwitterInteraction(userId, 'bookmark', url, body, null, error);
         console.error('Failed to bookmark tweet:', error);
+        error.code = 10016;
         // Rethrow the error to ensure it can be handled by the caller
         throw error;
     }
@@ -636,7 +644,7 @@ async function fetchUserId(username, accessToken, accessTokenSecret) {
     } catch (error) {
         // Log the failed API request
         await logTwitterInteraction(null, 'fetchUserId', url, null, null, error);
-
+        error.code = 10009;
         console.error('Failed to fetch user ID: ', error);
         throw new Error('Failed to fetch user ID');
     }
@@ -685,6 +693,7 @@ async function followUser(accessToken, accessTokenSecret, userId, targetUserId) 
         // Handle both errors from checkInteraction and makeAuthenticatedRequest
         await logTwitterInteraction(userId, 'follow', url, body, null, error);
         console.error('Failed to follow user:', error);
+        error.code = 10015;
         // Rethrow the error to ensure it can be handled by the caller
         throw error;
     }
@@ -746,6 +755,7 @@ async function checkIfRetweeted(accessToken, accessTokenSecret, userId, targetTw
         // Log the failed API request or interaction check
         await logTwitterInteraction(userId, 'checkRetweet', url, null, null, error);
         console.error('Error checking if retweeted:', error);
+        error.code = 10008;
         throw error;  // Rethrow error to be handled by the caller
     }
 }
@@ -804,6 +814,7 @@ async function checkIfFollowed(accessToken, accessTokenSecret, userId, targetUse
         // Log the failed API request or interaction check
         await logTwitterInteraction(userId, 'checkFollow', url, null, null, error);
         console.error('Error checking if followed:', error);
+        error.code = 10010;
         throw error;  // Rethrow error to be handled by the caller
     }
 }
@@ -859,6 +870,7 @@ async function checkIfLiked(accessToken, accessTokenSecret, userId, targetTweetI
         // Log the failed API request or interaction check
         await logTwitterInteraction(userId, 'checkLike', url, null, null, error);
         console.error('Error checking if liked:', error);
+        error.code = 10011;
         throw error;  // Rethrow error to be handled by the caller
     }
 }
@@ -916,6 +928,7 @@ async function checkIfBookmarked(accessToken, accessTokenSecret, userId, targetT
         // Log the failed API request or interaction check
         await logTwitterInteraction(userId, 'checkBookmark', url, null, null, error);
         console.error('Error checking if bookmarked:', error);
+        error.code = 10012;
         throw error;  // Rethrow error to be handled by the caller
     }
 }
@@ -924,6 +937,7 @@ async function checkIfBookmarked(accessToken, accessTokenSecret, userId, targetT
  * @brief Checks if a user has completed all required interactions on Twitter.
  * 
  * @param {string} userId - The ID of the user to check.
+ * @param {string[]} requiredTypes - An array of interaction types to check for.
  * 
  * @return {Promise<{ isFinished: boolean }>} A promise that resolves to an object containing the result of the check.
  * 
@@ -932,13 +946,10 @@ async function checkIfBookmarked(accessToken, accessTokenSecret, userId, targetT
  * If the user has completed all interactions, the promise resolves to { isFinished: true }, otherwise it resolves to { isFinished: false }.
  * If there is an error during the process, the promise is rejected with the error.
  */
-async function checkIfFinished(userId) {
-    // Note: `follow` is not included in the requiredTypes array
-    const requiredTypes = ["like", "retweet", "bookmark"];
-
+async function checkIfFinished(userId, requiredTypes) {
     try {
         // Check if the user has completed all required check procedures
-        const hasAllInteractions = await checkUserSteps(userId, requiredTypes, "retweet");
+        const hasAllInteractions = await checkUserSteps(userId, requiredTypes);
         
         if (hasAllInteractions) {
             console.log("User has all required interaction types.");
@@ -949,6 +960,7 @@ async function checkIfFinished(userId) {
         return { isFinished: false };
     } catch (error) {
         console.error("Failed to check user interactions:", error);
+        error.code = 10028;
         throw error;  // Rethrow the error to be handled by the caller
     }
 }
@@ -994,7 +1006,8 @@ async function generatePromotionCode(userAddress) {
         return promotionCode; // Return the new promotion code after successful insertion
     } catch (error) {
         console.error('Failed to generate and store promotion code:', error);
-        throw new Error('Error generating promotion code'); // Re-throw or handle error as needed
+        error.code = 10029;
+        throw error; // Re-throw the error to be handled by the caller
     }
 }
 
@@ -1031,6 +1044,7 @@ async function usePromotionCode(userAddress, promotionCode) {
     } catch (error) {
         // Catch and handle any errors that occur during database operations
         console.error('Error using promotion code:', error);
+        error.code = 10025;
         throw error; // Re-throw the error to be handled by the caller
     }
 }
@@ -1076,6 +1090,7 @@ async function checkIfPurchased(userAddress) {
         return { purchase: user.purchase };
     } catch (error) {
         console.error('Error checking buyer:', error);
+        error.code = 10027;
         throw error; // Re-throw the error to be handled by the caller
     }
 }
@@ -1113,6 +1128,7 @@ async function rewardParentUser(userAddress) {
     } catch (error) {
         // Log or handle errors appropriately within the catch block
         console.error('Error in rewarding parent user:', error);
+        error.code = 10033;
         throw error;  // Optionally re-throw the error to be handled by the caller
     }
 }
@@ -1147,7 +1163,8 @@ async function checkRewardParentUser(userAddress, airdropAmount, { airdropReward
         return ({ appendAmount, reward: appendAmount > 0, maxReward });
     } catch (error) {
         console.error('Failed to check reward for parent user:', error);
-        throw new Error('Error checking reward for parent user');
+        error.code = 10034;
+        throw error; // Re-throw the error to be handled by the caller
     }
 }
 
@@ -1179,7 +1196,8 @@ async function appendRewardParentUser(userAddress, rewardAmount) {
         throw new Error('No total reward amount found for parent user.');
     } catch (error) {
         console.error('Failed to append reward for parent user:', error);
-        throw new Error('Error appending reward for parent user');
+        error.code = 10035;
+        throw error; // Re-throw the error to be handled by the caller
     }
 }
 
@@ -1235,7 +1253,8 @@ async function logSubscriptionInfo(userEmail, userName = null, subscriptionInfo 
         return { isLogged: true, isUpdated: false };
     } catch (error) {
         console.error('Error logging subscription info:', error);
-        throw new Error('Error logging subscription info');
+        error.code = 10041;
+        throw error; // Re-throw the error to be handled by the caller
     }
 }
 
