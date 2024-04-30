@@ -232,7 +232,7 @@ app.get('/check-retweet', async (req, res) => {
         res.json(response);
     } catch (error) {
         const statusCode = error.statusCode || 500;
-        const response = createResponse(error.code, error.message);
+        const response = createResponse(error.code || 10000, error.message);
         res.status(statusCode).json(response);
     }
 });
@@ -270,7 +270,7 @@ app.get('/check-follow', async (req, res) => {
         res.json(response);
     } catch (error) {
         const statusCode = error.statusCode || 500;
-        const response = createResponse(error.code, error.message);
+        const response = createResponse(error.code || 10000, error.message);
         res.status(statusCode).json(response);
     }
 });
@@ -305,7 +305,7 @@ app.get('/check-like', async (req, res) => {
         res.json(response);
     } catch (error) {
         const statusCode = error.statusCode || 500;
-        const response = createResponse(error.code, error.message);
+        const response = createResponse(error.code || 10000, error.message);
         res.status(statusCode).json(response);
     }
 });
@@ -338,7 +338,7 @@ app.get('/check-bookmark', async (req, res) => {
         res.json(response);
     } catch (error) {
         const statusCode = error.statusCode || 500;
-        const response = createResponse(error.code, error.message);
+        const response = createResponse(error.code || 10000, error.message);
         res.status(statusCode).json(response);
     }
 });
@@ -382,7 +382,7 @@ app.get('/retweet', async (req, res) => {
         res.json(response);
     } catch (error) {
         const statusCode = error.statusCode || 500;
-        const response = createResponse(error.code, error.message);
+        const response = createResponse(error.code || 10000, error.message);
         res.status(statusCode).json(response);
     }
 });
@@ -426,7 +426,7 @@ app.get('/like', async (req, res) => {
         res.json(response);
     } catch (error) {
         const statusCode = error.statusCode || 500;
-        const response = createResponse(error.code, error.message);
+        const response = createResponse(error.code || 10000, error.message);
         res.status(statusCode).json(response);
     }
 });
@@ -469,7 +469,7 @@ app.get('/bookmark', async (req, res) => {
         res.json(response);
     } catch (error) {
         const statusCode = error.statusCode || 500;
-        const response = createResponse(error.code, error.message);
+        const response = createResponse(error.code || 10000, error.message);
         res.status(statusCode).json(response);
     }
 });
@@ -507,7 +507,7 @@ app.get('/follow-us', async (req, res) => {
         res.json(response);
     } catch (error) {
         const statusCode = error.statusCode || 500;
-        const response = createResponse(error.code, error.message);
+        const response = createResponse(error.code || 10000, error.message);
         res.status(statusCode).json(response);
     }
 });
@@ -539,7 +539,7 @@ app.get('/check-airdrop', async (req, res) => {
         const response = createResponse(0, 'Success', result);
         res.json(response);
     } catch (error) {
-        const response = createResponse(error.code, error.message);
+        const response = createResponse(error.code || 10000, error.message);
         res.status(500).json(response);
     }
 });
@@ -570,7 +570,7 @@ app.get('/log-airdrop', async (req, res) => {
         const response = createResponse(0, 'Success', result);
         res.json(response);
     } catch (error) {
-        const response = createResponse(error.code, error.message);
+        const response = createResponse(error.code || 10000, error.message);
         res.status(500).json(response);
     }
 });
@@ -655,7 +655,7 @@ app.get('/check-airdrop-amount', async (req, res) => {
         res.json(data);
     } catch (error) {
         console.error('Error in handling the request:', error);
-        const response = createResponse(error.code, error.message);
+        const response = createResponse(error.code || 10000, error.message);
         res.status(500).json(response);
     }
 });
@@ -686,7 +686,7 @@ app.get('/generate-promotion-code', async (req, res) => {
 
         // TODO: Note: `follow` is not included in the requiredTypes array
         const requiredTypes = ["like"];
-        
+
         const result = await utils.checkIfFinished(userId, requiredTypes);
         if (result.isFinished) {
             console.log("User has completed all required steps and is eligible for obtaining the promotion code.");
@@ -703,7 +703,7 @@ app.get('/generate-promotion-code', async (req, res) => {
             res.json(response);
         }
     } catch (error) {
-        const response = createResponse(error.code, error.message);
+        const response = createResponse(error.code || 10000, error.message);
         res.status(500).json(response);
     }
 });
@@ -775,7 +775,7 @@ app.get('/send-airdrop-parent', async (req, res) => {
         res.json(responseData);
     } catch (error) {
         console.error('Error in handling the request:', error);
-        const response = createResponse(error.code, error.message);
+        const response = createResponse(error.code || 10000, error.message);
         res.status(500).json(response);
     }
 });
@@ -807,7 +807,7 @@ app.get('/check-purchase', async (req, res) => {
         res.json(response);
     } catch (error) {
         console.error("Failed to check purchase:", error);
-        const response = createResponse(error.code, error.message);
+        const response = createResponse(error.code || 10000, error.message);
         res.status(500).json(response);
     }
 });
@@ -830,7 +830,7 @@ app.get('/subscription-info', async (req, res) => {
         res.json(response);
     } catch (error) {
         console.error("Failed to log subscription info:", error);
-        const response = createResponse(error.code, error.message);
+        const response = createResponse(error.code || 10000, error.message);
         res.status(500).json(response);
     }
 });
