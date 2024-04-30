@@ -226,6 +226,12 @@ docker network create lotso-network
 
 ## Running the Application
 
+Run the service in non-Docker mode using the following command:
+```bash
+npm install
+node src/start.js
+```
+
 Run the Docker container using the following command:
 ```bash
 SERVER_PORT=5000 \

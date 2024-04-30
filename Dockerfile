@@ -42,4 +42,4 @@ RUN npm install
 COPY src/ .
 
 # Run the web service on container startup
-CMD [ "node", "server.js" ]
+CMD [ "node", "start.js" ]
