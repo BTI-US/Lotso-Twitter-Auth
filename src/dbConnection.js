@@ -91,28 +91,53 @@ async function ensureCollectionExists(db, collectionName, schema) {
 mongoUtil.connectToServer()
     .then(async ({ dbConnection: localDbConnection, userDbConnection: localUserDbConnection }) => {
         console.log("Successfully connected to MongoDB.");
-        // Create indexes after ensuring the database connection is established
 
-        await Promise.all([
-            ensureCollectionExists(localDbConnection, 'twitterInteractions', logTwitterInteractionsSchema),
-            ensureCollectionExists(localUserDbConnection, 'twitterInteractions', twitterInteractionsSchema),
-            ensureCollectionExists(localUserDbConnection, 'airdropClaim', airdropClaimSchema),
-            ensureCollectionExists(localUserDbConnection, 'promotionCode', promotionCodeSchema),
-            ensureCollectionExists(localUserDbConnection, 'users', userSchema),
-            ensureCollectionExists(localUserDbConnection, 'subscriptionInfo', subscriptionInfoSchema),
-        ]);
+        const collections = [
+            { 
+                db: localDbConnection, 
+                name: 'twitterInteractions', 
+                schema: logTwitterInteractionsSchema, 
+                index: { fields: { userId: 1, targetId: 1, type: 1 }, unique: false },
+            },
+            { 
+                db: localUserDbConnection, 
+                name: 'twitterInteractions', 
+                schema: twitterInteractionsSchema, 
+                index: { fields: { userId: 1, targetId: 1, type: 1 }, unique: true },
+            },
+            { 
+                db: localUserDbConnection, 
+                name: 'airdropClaim', 
+                schema: airdropClaimSchema, 
+                index: { fields: { userAddress: 1 }, unique: true },
+            },
+            { 
+                db: localUserDbConnection, 
+                name: 'promotionCode', 
+                schema: promotionCodeSchema, 
+                index: { fields: { userAddress: 1 }, unique: true },
+            },
+            { 
+                db: localUserDbConnection, 
+                name: 'users', 
+                schema: userSchema, 
+                index: { fields: { userAddress: 1 }, unique: true },
+            },
+            { 
+                db: localUserDbConnection, 
+                name: 'subscriptionInfo', 
+                schema: subscriptionInfoSchema, 
+                index: { fields: { userEmail: 1 }, unique: true },
+            },
+        ];
 
-        Promise.all([
-            createIndex(localDbConnection.collection('twitterInteractions'), { userId: 1, targetId: 1, type: 1 }, false),
-            // Enforce uniqueness on the userId field but allow multiple type values for each userId.
-            createIndex(localUserDbConnection.collection('twitterInteractions'), { userId: 1, targetId: 1, type: 1 }, true),
-            createIndex(localUserDbConnection.collection('airdropClaim'), { userAddress: 1 }, true),
-            createIndex(localUserDbConnection.collection('promotionCode'), { userAddress: 1 }, true),
-            createIndex(localUserDbConnection.collection('users'), { userAddress: 1 }),
-            createIndex(localUserDbConnection.collection('subscriptionInfo'), { userEmail: 1 }, true),
-        ])
-            .catch(err => console.error("Error creating indexes:", err));
-        
+        await Promise.all(collections.map(async c => {
+            await ensureCollectionExists(c.db, c.name, c.schema);
+            await createIndex(c.db.collection(c.name), c.index.fields, c.index.unique);
+        }));
+
+        console.log("Successfully created collections and indexes in MongoDB.");
+
         dbConnection = localDbConnection;
         userDbConnection = localUserDbConnection;
     })
