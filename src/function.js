@@ -1,110 +1,14 @@
 const { OAuth } = require('oauth');
-const mongoUtil = require('./db');
-
-let dbConnection = null;
-let userDbConnection = null;
+const { dbConnection, userDbConnection } = require('./dbConnection');
 
 const airdropCheckAddress = `http://${process.env.AIRDROP_SERVER_HOST}:${process.env.AIRDROP_SERVER_PORT}/v1/info/check_eligibility`;
-
-/**
- * @brief Removes duplicate documents from a collection based on specified fields.
- * @param {Collection} collection - The MongoDB collection to remove duplicates from.
- * @param {Object} fields - The fields to consider for identifying duplicates.
- * @return {Promise<void>} - A promise that resolves when the duplicates are removed.
- * @note This function uses the MongoDB aggregation framework to identify and remove duplicates.
- */
-async function removeDuplicates(collection, fields) {
-    const groupFields = Object.fromEntries(Object.keys(fields).map(key => [key, `$${key}`]));
-
-    const duplicates = await collection.aggregate([
-        { $group: { _id: groupFields, count: { $sum: 1 }, dups: { $push: "$_id" } } },
-        { $match: { count: { $gt: 1 } } },
-    ]).toArray();
-
-    await Promise.all(duplicates.map(async (duplicate) => {
-        duplicate.dups.shift();      // First element skipped for deleting
-        await collection.deleteMany({ _id: { $in: duplicate.dups } });
-    }));
-}
-
-/**
- * @brief Creates an index in a MongoDB collection based on the specified fields.
- * If an index with the same fields already exists, it will be dropped and recreated.
- *
- * @param {Collection} collection - The MongoDB collection to create the index in.
- * @param {Object} fields - The fields to create the index on.
- * @param {boolean} [unique=false] - Optional. Specifies whether the index should enforce uniqueness.
- * @return {Promise<void>} - A promise that resolves when the index is created or already exists.
- * @note This function assumes that the MongoDB collection has been properly initialized and connected.
- */
-async function createIndex(collection, fields, unique = false) {
-    const indexName = Object.keys(fields).join('_');
-    const indexes = await collection.listIndexes().toArray();
-
-    const existingIndex = indexes.find(index => JSON.stringify(index.key) === JSON.stringify(fields));
-
-    if (existingIndex) {
-        if (existingIndex.name !== indexName) {
-            // Drop the existing index if it has a different name
-            await collection.dropIndex(existingIndex.name);
-        } else {
-            // If the existing index has the same name, no need to create it again
-            return;
-        }
-    }
-
-    if (unique) {
-        // Handle duplicates before creating a unique index
-        await removeDuplicates(collection, fields);
-    }
-
-    return collection.createIndex(fields, { unique, name: indexName });
-}
-
-async function ensureCollectionExists(db, collectionName) {
-    const collections = await db.listCollections({ name: collectionName }, { nameOnly: true }).toArray();
-    if (collections.length === 0) {
-        await db.createCollection(collectionName);
-    }
-}
-
-mongoUtil.connectToServer()
-    .then(async ({ dbConnection: localDbConnection, userDbConnection: localUserDbConnection }) => {
-        console.log("Successfully connected to MongoDB.");
-        // Create indexes after ensuring the database connection is established
-
-        await Promise.all([
-            ensureCollectionExists(localUserDbConnection, 'twitterInteractions'),
-            ensureCollectionExists(localUserDbConnection, 'airdropClaim'),
-            ensureCollectionExists(localUserDbConnection, 'promotionCode'),
-            ensureCollectionExists(localUserDbConnection, 'users'),
-            ensureCollectionExists(localUserDbConnection, 'subscriptionInfo'),
-        ]);
-
-        Promise.all([
-            // Enforce uniqueness on the userId field but allow multiple type values for each userId.
-            createIndex(localUserDbConnection.collection('twitterInteractions'), { userId: 1, targetId: 1, type: 1 }, true),
-            createIndex(localUserDbConnection.collection('airdropClaim'), { userAddress: 1 }, true),
-            createIndex(localUserDbConnection.collection('promotionCode'), { userAddress: 1 }, true),
-            createIndex(localUserDbConnection.collection('users'), { userAddress: 1 }),
-            createIndex(localUserDbConnection.collection('subscriptionInfo'), { userEmail: 1 }, true),
-        ])
-            .catch(err => console.error("Error creating indexes:", err));
-        
-        dbConnection = localDbConnection;
-        userDbConnection = localUserDbConnection;
-    })
-    .catch(err => {
-        console.error("Failed to connect to MongoDB:", err);
-        process.exit(1);
-    });
 
 /**
  * Logs interactions with the Twitter API to MongoDB.
  * @param {string} userId - The ID of the user performing the interaction.
  * @param {string} type - The type of interaction (e.g., 'follow', 'like').
  * @param {string} url - The API endpoint URL.
- * @param {Object} requestBody - The body of the request.
+ * @param {Object|null} requestBody - The body of the request.
  * @param {Object|null} response - The API response, if successful.
  * @param {Error|null} error - The error, if the request failed.
  */
@@ -138,7 +42,7 @@ async function logTwitterInteraction(userId, type, url, requestBody, response = 
  * @param {string} targetId - The ID of the target user or tweet.
  * @param {string} type - The type of interaction (e.g., 'follow', 'like').
  * @param {string} url - The API endpoint URL.
- * @param {Object} requestBody - The body of the request.
+ * @param {Object|null} requestBody - The body of the request.
  * @param {Object|null} [response=null] - The API response, if successful.
  * @param {Error|null} [error=null] - The error, if the request failed.
  * 
