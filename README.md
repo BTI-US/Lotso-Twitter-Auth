@@ -83,42 +83,114 @@ sequenceDiagram
 
 ### Airdrop Sequence Diagram
 
+#### Parent User: (This user claims the airdrop and shares the promotion code)
+
 ```mermaid
 sequenceDiagram
-    participant U as User
+    participant U as Parent User
     participant F as Frontend
     participant B as Backend
     participant S as Airdrop Server
+    participant BC as Blockchain
+    participant T as Twitter Server
 
-    U->>F: Finished required missions <br>Clicks 'Claim Airdrop'
-    F->>B: Check airdrop eligibility <br>GET Endpoint: /check-airdrop <br>Parameter: address
-    note over B: Check if user is eligible
-    B->>S: Query airdrop eligibility <br>GET Endpoint: /check_eligibility <br>Parameter: address
-    S-->>B: Return eligibility status <br>Body: JSON object
-    B-->>F: Query airdrop eligibility <br>Body: JSON object
-    F-->>U: Display result <br>(Rejected if not eligible)
+    note over U: This user need to complete required steps <br>No need to input promotion code
+
+    U->>F: Step 1 <br>Click the 'Check Eligibility' button
+    F->>B: Check if purchased the $Lotso 1st generation token <br>GET Endpoint: /check-purchase <br>Parameter: addresss
+    note over B: Check if user has logged in the database
+    B->>S: Check user purchase status if not logged in the database <br>GET Endpoint: /check_eligibility <br>Parameter: address
+    S-->>B: Return user purchase status <br>Body: JSON object
+    B-->>F: Return user purchase status <br>Body: JSON object
+    F-->>U: Display user purchase status <br>(Rejected if not purchased)
+    F->>B: Check if user has finished required steps <br>GET Endpoint: /check-like <br>Parameter: tweetId
+    B->>T: Check if user has liked the tweet <br>GET Endpoint: https://api.twitter.com/2/tweets/${targetTweetId}/retweeted_by
+    T-->>B: Return check result <br>Body: JSON object
+    B-->>F: Return check result <br>Body: JSON object
+    F-->>U: Reject if not finished required steps
+    F->>B: Chech the user's airdrop amount <br>GET Endpoint: /check-airdrop-amount <br>Parameters: address, step
+    B-->>F: Return the available airdrop amount <br> 300,000 $Lotso tokens
+    F-->>U: Display result <br>(Rejected if not available)
+    F->>B: Check if user has claimed the airdrop <br>GET Endpoint: /check-airdrop <br>Parameter: address
+    B-->>F: Return the airdrop logging status <br>Body: JSON object
+    F-->>U: Display result <br>(Rejected if already claimed)
+
+    U->>F: Step 2 <br>Clicks 'Claim Airdrop'
+    F->>BC: Read the contract to check the available airdrop amount
+    BC-->>F: Return the available airdrop amount
+    F-->>U: Display result <br>(Rejected if not available)
+    note over U: Proceed if airdrop available
+
+    U->>F: Step 3 <br>Clicks 'Confirm Airdrop'
+    F->>BC: Send transaction to claim airdrop
+    BC->>F: Return transaction result
+    F-->>U: Display transaction result and pop up promotion code
+
+    U->>F: Step 4 <br>Clicks 'Generate Promotion Code'
     F->>B: Request promotion code <br>GET Endpoint: /generate-promotion-code <br>Parameter: address
-    note over B: Generate promotion code for user
+    note over B: Check if finished required steps <br>Generate promotion code for user
     B-->>F: Return promotion code <br>Body: JSON object
     F->>U: Display promotion code
+```
 
-    note over U: User shares code if eligible
-    U->>F: Clicks 'Check Airdrop'
-    F->>B: Verify promotion code <br>Endpoint: /check-airdrop-amount <br>Parameters: address, step, promotionCode
-    note over B: Verify code and calculate airdrop
-    B->>S: Query airdrop amount <br>GET Endpoint: /set_airdrop <br>Parameters: address, amount
-    note over S: Determine airdrop based on transactions
-    S->>B: Return airdrop amount <br>Body: JSON object
-    B-->>F: Return airdrop amount <br>Body: JSON object
-    F-->>U: Display airdrop amount
+#### Child User: (This user uses the promotion code shared by the parent user to claim the airdrop)
 
-    U->>F: Clicks 'Confirm Airdrop'
-    F->>B: Confirm airdrop <br>GET Endpoint: /send-airdrop-parent <br>Parameters: address, step
+```mermaid
+sequenceDiagram
+    participant U as Child User
+    participant F as Frontend
+    participant B as Backend
+    participant S as Airdrop Server
+    participant BC as Blockchain
+    participant T as Twitter Server
+
+    note over U: This user need to complete required steps <br>Need to input promotion code
+
+    U->>F: Step 1 <br>Click the 'Check Eligibility' button
+    F->>B: Check if purchased the $Lotso 1st generation token <br>GET Endpoint: /check-purchase <br>Parameter: addresss
+    note over B: Check if user has logged in the database
+    B->>S: Check user purchase status if not logged in the database <br>GET Endpoint: /check_eligibility <br>Parameter: address
+    S-->>B: Return user purchase status <br>Body: JSON object
+    B-->>F: Return user purchase status <br>Body: JSON object
+    note over F: Continue if not purchased
+    F->>B: Check if user has finished required steps <br>GET Endpoint: /check-like <br>Parameter: tweetId
+    B->>T: Check if user has liked the tweet <br>GET Endpoint: https://api.twitter.com/2/tweets/${targetTweetId}/retweeted_by
+    T-->>B: Return check result <br>Body: JSON object
+    B-->>F: Return check result <br>Body: JSON object
+    F-->>U: Reject if not finished required steps
+    F->>B: Chech the user's airdrop amount <br>GET Endpoint: /check-airdrop-amount <br>Parameters: address, step, promotionCode
+    B-->>F: Return the available airdrop amount <br> 100,000 $Lotso tokens
+    F-->>U: Display result <br>(Rejected if not available)
+    F->>B: Check if user has claimed the airdrop <br>GET Endpoint: /check-airdrop <br>Parameter: address
+    B-->>F: Return the airdrop logging status <br>Body: JSON object
+    F-->>U: Display result <br>(Rejected if already claimed)
+
+    U->>F: Step 2 <br>Clicks 'Claim Airdrop'
+    F->>BC: Read the contract to check the available airdrop amount
+    BC-->>F: Return the available airdrop amount
+    F-->>U: Display result <br>(Rejected if not available)
+    note over U: Proceed if airdrop available
+
+    U->>F: Step 3 <br>Clicks 'Confirm Airdrop'
+    F->>BC: Send transaction to claim airdrop
+    BC->>F: Return transaction result
+    F-->>U: Display transaction result
+    note over F: Proceed if transaction successful
+    F->>B: Send airdrop rweard to parent <br>GET Endpoint: /send-airdrop-parent <br>Parameters: address, step
     note over B: Calculate final reward
     B->>S: Request airdrop reward <br>GET Endpoint: /append_airdrop <br>Parameters: address, amount
-    note over S: Process reward transaction
-    S-->>B: Return transaction result <br>Body: JSON object
-    S-->>U: Send airdrop reward to user
+    note over S: Process reward transaction <br> Send reward to parent user
+    S->>BC: Process reward transaction
+    BC-->>S: Return transaction result
+    S-->>B: Return airdrop amount <br>Body: JSON object <br> Rejected if beyond limit
+    B-->>F: Return airdrop amount <br>Body: JSON object
+    F-->>U: Display transaction result and pop up promotion code
+
+    U->>F: Step 4 <br>Clicks 'Generate Promotion Code'
+    F->>B: Request promotion code <br>GET Endpoint: /generate-promotion-code <br>Parameter: address
+    note over B: Check if finished required steps <br>Generate promotion code for user
+    B-->>F: Return promotion code <br>Body: JSON object
+    F->>U: Display promotion code
 ```
 
 ### Explanation of the Twitter OAuth Diagram
