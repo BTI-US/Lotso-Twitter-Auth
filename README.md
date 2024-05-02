@@ -16,16 +16,19 @@
   - [Requirements](#requirements)
   - [Diagram](#diagram)
     - [Twitter OAuth Sequence Diagram](#twitter-oauth-sequence-diagram)
+      - [Steps for Twitter OAuth (Frontend)](#steps-for-twitter-oauth-frontend)
     - [Airdrop Sequence Diagram](#airdrop-sequence-diagram)
-    - [Explanation of the Twitter OAuth Diagram](#explanation-of-the-twitter-oauth-diagram)
-    - [Steps for Twitter OAuth (Frontend)](#steps-for-twitter-oauth-frontend)
-    - [Steps for Airdrop Sequence Diagram](#steps-for-airdrop-sequence-diagram)
+      - [Parent User: (This user claims the airdrop and shares the promotion code)](#parent-user-this-user-claims-the-airdrop-and-shares-the-promotion-code)
+      - [Explanation of this Parent User Diagram](#explanation-of-this-parent-user-diagram)
+      - [Child User: (This user uses the promotion code shared by the parent user to claim the airdrop)](#child-user-this-user-uses-the-promotion-code-shared-by-the-parent-user-to-claim-the-airdrop)
+      - [Explanation of this Child User Diagram](#explanation-of-this-child-user-diagram)
     - [Additional Details](#additional-details)
   - [Installation and Setup](#installation-and-setup)
     - [Setting Up Twitter API Keys](#setting-up-twitter-api-keys)
     - [Building the Docker Image](#building-the-docker-image)
     - [Building the MongoDB Docker Image](#building-the-mongodb-docker-image)
     - [Building the Redis Docker Image](#building-the-redis-docker-image)
+    - [Setting the docker network](#setting-the-docker-network)
   - [Running the Application](#running-the-application)
   - [How to Acquire Twitter API Keys](#how-to-acquire-twitter-api-keys)
   - [Twitter API Rate Limitations](#twitter-api-rate-limitations)
@@ -51,6 +54,11 @@ This project implements a serverless function hosted within a Docker container t
 ## Diagram
 
 ### Twitter OAuth Sequence Diagram
+
+- **User (U)**: The end-user interacting with the frontend.
+- **Frontend (F)**: Your web application's frontend that interacts with the user and the backend.
+- **Backend (B)**: The server-side component that handles OAuth with Twitter, fetching tweets, and analyzing content.
+- **Twitter (T)**: The Twitter platform that handles OAuth and provides access to user tweets.
 
 ```mermaid
 sequenceDiagram
@@ -81,9 +89,34 @@ sequenceDiagram
     F-->>U: Display action result (Success or Error)
 ```
 
+#### Steps for Twitter OAuth (Frontend)
+
+1. **User Action**: The user clicks 'Log in with Twitter' on the frontend.
+2. **OAuth Start**: The frontend opens a new tab redirecting the user to the backend `/start-auth` endpoint with the callback URL.
+3. **OAuth Token Request**: The backend requests an OAuth token from Twitter.
+4. **Twitter Response**: Twitter returns an OAuth token to the backend.
+5. **User Redirect to Twitter**: The backend redirects the user to the Twitter authentication URL in the newly opened tab.
+6. **User Authorizes**: The user logs into Twitter and authorizes the application.
+7. **Callback to Backend**: Twitter redirects the user back to the specified callback URL on the backend, providing an OAuth verifier.
+8. **Access Token Request**: The backend requests an access token from Twitter using the verifier.
+9. **Twitter Provides Tokens**: Twitter sends the access token and secret back to the backend.
+10. **Token Passing**: The backend passes the tokens to the frontend via `postMessage`, and the popup window is closed.
+11. **Token Storage**: The frontend securely stores the tokens in session storage.
+12. **User Actions**: The user performs actions such as 'Retweet', 'Like', or 'Share' via the frontend interface.
+13. **Action Requests**: The frontend sends requests to the backend to perform the selected actions using the stored access tokens.
+14. **Twitter Action Execution**: The backend makes API calls to Twitter to execute the actions (retweet, like, share).
+15. **Display Results**: The frontend displays the results of the actions to the user (success or failure).
+
 ### Airdrop Sequence Diagram
 
 #### Parent User: (This user claims the airdrop and shares the promotion code)
+
+- **User (U)**: The end-user interacting with the frontend.
+- **Frontend (F)**: The user interface that interacts with the user and the backend.
+- **Backend (B)**: The server-side component that handles user eligibility, airdrop claims, and promotion code generation.
+- **Airdrop Server (S)**: The server that manages airdrop rewards and logging.
+- **Blockchain (BC)**: The blockchain network that processes airdrop transactions.
+- **Twitter Server (T)**: The server that checks user Twitter interactions.
 
 ```mermaid
 sequenceDiagram
@@ -94,7 +127,7 @@ sequenceDiagram
     participant BC as Blockchain
     participant T as Twitter Server
 
-    note over U: This user need to complete required steps <br>No need to input promotion code
+    note over U: This user do not need to input promotion code
 
     U->>F: Step 1 <br>Click the 'Check Eligibility' button
     F->>B: Check if purchased the $Lotso 1st generation token <br>GET Endpoint: /check-purchase <br>Parameter: addresss
@@ -104,26 +137,34 @@ sequenceDiagram
     B-->>F: Return user purchase status <br>Body: JSON object
     F-->>U: Display user purchase status <br>(Rejected if not purchased)
     F->>B: Check if user has finished required steps <br>GET Endpoint: /check-like <br>Parameter: tweetId
+    note over B: Check if user has liked the tweet in the database
+    B-->>F: Return previous check result if the check is performed within 2 hours <br>Body: JSON object
     B->>T: Check if user has liked the tweet <br>GET Endpoint: https://api.twitter.com/2/tweets/${targetTweetId}/retweeted_by
     T-->>B: Return check result <br>Body: JSON object
     B-->>F: Return check result <br>Body: JSON object
     F-->>U: Reject if not finished required steps
-    F->>B: Chech the user's airdrop amount <br>GET Endpoint: /check-airdrop-amount <br>Parameters: address, step
-    B-->>F: Return the available airdrop amount <br> 300,000 $Lotso tokens
-    F-->>U: Display result <br>(Rejected if not available)
+    F->>B: Check the user's airdrop amount <br>GET Endpoint: /check-airdrop-amount <br>Parameters: address, step
+    note over B: Query the airdrop amount from database
+    B-->>F: Return the available airdrop amount <br> 300,000 $Lotso tokens if available
+    F-->>U: Rejected if not available
     F->>B: Check if user has claimed the airdrop <br>GET Endpoint: /check-airdrop <br>Parameter: address
+    note over B: Check if user has logged in the database
     B-->>F: Return the airdrop logging status <br>Body: JSON object
     F-->>U: Display result <br>(Rejected if already claimed)
 
     U->>F: Step 2 <br>Clicks 'Claim Airdrop'
     F->>BC: Read the contract to check the available airdrop amount
     BC-->>F: Return the available airdrop amount
-    F-->>U: Display result <br>(Rejected if not available)
+    F-->>U: Rejected if airdrop is not available
+    F->>B: Log the user's airdrop claim <br>GET Endpoint: /log-airdrop <br>Parameter: address
+    note over B: Log the airdrop claim in the database
+    B-->>F: Return the airdrop logging status <br>Body: JSON object
+    F-->>U: Display transaction succeed result
     note over U: Proceed if airdrop available
 
     U->>F: Step 3 <br>Clicks 'Confirm Airdrop'
     F->>BC: Send transaction to claim airdrop
-    BC->>F: Return transaction result
+    BC-->>F: Return transaction result
     F-->>U: Display transaction result and pop up promotion code
 
     U->>F: Step 4 <br>Clicks 'Generate Promotion Code'
@@ -133,7 +174,39 @@ sequenceDiagram
     F->>U: Display promotion code
 ```
 
+#### Explanation of this Parent User Diagram
+
+Based on the selected Mermaid sequence diagram, here's the step-by-step process for the Parent User to claim the airdrop and share the promotion code:
+
+1. **User Action**: The Parent User completes the required steps and clicks 'Check Eligibility' on the Frontend.
+2. **Eligibility Check**: The Frontend sends a GET request to the Backend `/check-purchase` endpoint with the user's address as a parameter.
+3. **Backend Processing**: The Backend checks if the user has purchased the $Lotso 1st generation token.
+4. **Airdrop Server Query**: If the purchase status is not logged in the database, the Backend sends a GET request to the Airdrop Server `/check_eligibility` endpoint with the user's address as a parameter.
+5. **Eligibility Status**: The Airdrop Server returns the purchase status to the Backend, which then forwards it to the Frontend.
+6. **Display Result**: The Frontend displays the purchase status to the user. If the user has not purchased, the process ends here.
+7. **Promotion Code Request**: If the user has purchased, the user clicks 'Generate Promotion Code', and the Frontend sends a GET request to the Backend `/generate-promotion-code` endpoint with the user's address as a parameter.
+8. **Promotion Code Generation**: The Backend checks if the user has finished the required steps and generates a promotion code for the user, then returns it to the Frontend.
+9. **Display Promotion Code**: The Frontend displays the promotion code to the user.
+10. **User Shares Code**: If the user is eligible, they share the promotion code.
+11. **Airdrop Verification**: The user clicks 'Claim Airdrop', and the Frontend sends a GET request to the Backend `/check-airdrop-amount` endpoint with the user's address and step as parameters.
+12. **Airdrop Calculation**: The Backend queries the airdrop amount from the database.
+13. **Airdrop Amount Query**: The Backend returns the available airdrop amount to the Frontend.
+14. **Airdrop Determination**: The Frontend reads the contract from the Blockchain to check the available airdrop amount.
+15. **Display Airdrop Amount**: The Frontend displays the airdrop amount to the user.
+16. **Airdrop Confirmation**: The user clicks 'Confirm Airdrop', and the Frontend sends a transaction to the Blockchain to claim the airdrop.
+17. **Final Reward Calculation**: The Blockchain returns the transaction result to the Frontend.
+18. **Airdrop Reward Request**: The Frontend displays the transaction result and a promotion code to the user.
+19. **Reward Transaction Processing**: The user clicks 'Claim Airdrop', and the Frontend logs the user's airdrop claim by sending a GET request to the Backend `/log-airdrop` endpoint with the user's address as a parameter.
+20. **Airdrop Reward Delivery**: The Backend logs the airdrop claim in the database and returns the airdrop logging status to the Frontend, which then displays the transaction success result to the user.
+
 #### Child User: (This user uses the promotion code shared by the parent user to claim the airdrop)
+
+- **User (U)**: The end-user interacting with the frontend.
+- **Frontend (F)**: The user interface that interacts with the user and the backend.
+- **Backend (B)**: The server-side component that handles user eligibility, airdrop claims, and promotion code generation.
+- **Airdrop Server (S)**: The server that manages airdrop rewards and logging.
+- **Blockchain (BC)**: The blockchain network that processes airdrop transactions.
+- **Twitter Server (T)**: The server that checks user Twitter interactions.
 
 ```mermaid
 sequenceDiagram
@@ -144,7 +217,7 @@ sequenceDiagram
     participant BC as Blockchain
     participant T as Twitter Server
 
-    note over U: This user need to complete required steps <br>Need to input promotion code
+    note over U: This user need to input promotion code
 
     U->>F: Step 1 <br>Click the 'Check Eligibility' button
     F->>B: Check if purchased the $Lotso 1st generation token <br>GET Endpoint: /check-purchase <br>Parameter: addresss
@@ -154,26 +227,34 @@ sequenceDiagram
     B-->>F: Return user purchase status <br>Body: JSON object
     note over F: Continue if not purchased
     F->>B: Check if user has finished required steps <br>GET Endpoint: /check-like <br>Parameter: tweetId
+    note over B: Check if user has liked the tweet in the database
+    B-->>F: Return previous check result if the check is performed within 2 hours <br>Body: JSON object
     B->>T: Check if user has liked the tweet <br>GET Endpoint: https://api.twitter.com/2/tweets/${targetTweetId}/retweeted_by
     T-->>B: Return check result <br>Body: JSON object
     B-->>F: Return check result <br>Body: JSON object
     F-->>U: Reject if not finished required steps
-    F->>B: Chech the user's airdrop amount <br>GET Endpoint: /check-airdrop-amount <br>Parameters: address, step, promotionCode
-    B-->>F: Return the available airdrop amount <br> 100,000 $Lotso tokens
-    F-->>U: Display result <br>(Rejected if not available)
+    F->>B: Check the user's airdrop amount <br>GET Endpoint: /check-airdrop-amount <br>Parameters: address, step, promotionCode
+    note over B: Query the airdrop amount from database
+    B-->>F: Return the available airdrop amount <br> 100,000 $Lotso tokens if available
+    F-->>U: Rejected if not available
     F->>B: Check if user has claimed the airdrop <br>GET Endpoint: /check-airdrop <br>Parameter: address
+    note over B: Check if user has logged in the database
     B-->>F: Return the airdrop logging status <br>Body: JSON object
     F-->>U: Display result <br>(Rejected if already claimed)
 
     U->>F: Step 2 <br>Clicks 'Claim Airdrop'
     F->>BC: Read the contract to check the available airdrop amount
     BC-->>F: Return the available airdrop amount
-    F-->>U: Display result <br>(Rejected if not available)
+    F-->>U: Rejected if airdrop is not available
+    F->>B: Log the user's airdrop claim <br>GET Endpoint: /log-airdrop <br>Parameter: address
+    note over B: Log the airdrop claim in the database
+    B->>F: Return the airdrop logging status <br>Body: JSON object
+    F-->>U: Display transaction succeed result
     note over U: Proceed if airdrop available
 
     U->>F: Step 3 <br>Clicks 'Confirm Airdrop'
     F->>BC: Send transaction to claim airdrop
-    BC->>F: Return transaction result
+    BC-->>F: Return transaction result
     F-->>U: Display transaction result
     note over F: Proceed if transaction successful
     F->>B: Send airdrop rweard to parent <br>GET Endpoint: /send-airdrop-parent <br>Parameters: address, step
@@ -193,53 +274,32 @@ sequenceDiagram
     F->>U: Display promotion code
 ```
 
-### Explanation of the Twitter OAuth Diagram
+#### Explanation of this Child User Diagram
 
-- **User (U)**: The end-user interacting with the frontend.
-- **Frontend (F)**: Your web application's frontend that interacts with the user and the backend.
-- **Backend (B)**: The server-side component that handles OAuth with Twitter, fetching tweets, and analyzing content.
-- **Twitter (T)**: The Twitter platform that handles OAuth and provides access to user tweets.
+Based on the selected Mermaid sequence diagram, here's the step-by-step process for the Child User to claim the airdrop using the promotion code shared by the Parent User:
 
-### Steps for Twitter OAuth (Frontend)
-
-1. **User Action**: The user clicks 'Log in with Twitter' on the frontend.
-2. **OAuth Start**: The frontend opens a new tab redirecting the user to the backend `/start-auth` endpoint with the callback URL.
-3. **OAuth Token Request**: The backend requests an OAuth token from Twitter.
-4. **Twitter Response**: Twitter returns an OAuth token to the backend.
-5. **User Redirect to Twitter**: The backend redirects the user to the Twitter authentication URL in the newly opened tab.
-6. **User Authorizes**: The user logs into Twitter and authorizes the application.
-7. **Callback to Backend**: Twitter redirects the user back to the specified callback URL on the backend, providing an OAuth verifier.
-8. **Access Token Request**: The backend requests an access token from Twitter using the verifier.
-9. **Twitter Provides Tokens**: Twitter sends the access token and secret back to the backend.
-10. **Token Passing**: The backend passes the tokens to the frontend via `postMessage`, and the popup window is closed.
-11. **Token Storage**: The frontend securely stores the tokens in session storage.
-12. **User Actions**: The user performs actions such as 'Retweet', 'Like', or 'Share' via the frontend interface.
-13. **Action Requests**: The frontend sends requests to the backend to perform the selected actions using the stored access tokens.
-14. **Twitter Action Execution**: The backend makes API calls to Twitter to execute the actions (retweet, like, share).
-15. **Display Results**: The frontend displays the results of the actions to the user (success or failure).
-
-### Steps for Airdrop Sequence Diagram
-
-1. **User Action**: The user completes the required missions and clicks 'Claim Airdrop' on the frontend.
-2. **Eligibility Check**: The frontend sends a GET request to the backend `/check-airdrop` endpoint with the user's address as a parameter.
-3. **Backend Processing**: The backend checks if the user is eligible for the airdrop.
-4. **Airdrop Server Query**: The backend sends a GET request to the Airdrop Server `/check_eligibility` endpoint with the user's address as a parameter.
-5. **Eligibility Status**: The Airdrop Server returns the eligibility status to the backend, which then forwards it to the frontend.
-6. **Display Result**: The frontend displays the result to the user. If the user is not eligible, the process ends here.
-7. **Promotion Code Request**: If the user is eligible, the frontend sends a GET request to the backend `/generate-promotion-code` endpoint with the user's address as a parameter.
-8. **Promotion Code Generation**: The backend generates a promotion code for the user and returns it to the frontend.
-9. **Display Promotion Code**: The frontend displays the promotion code to the user.
-10. **User Shares Code**: If the user is eligible, they share the promotion code.
-11. **Airdrop Verification**: The user clicks 'Check Airdrop', and the frontend sends a request to the backend `/check-airdrop-amount` endpoint with the user's address, step, and promotion code as parameters.
-12. **Airdrop Calculation**: The backend verifies the promotion code and calculates the airdrop amount.
-13. **Airdrop Amount Query**: The backend sends a GET request to the Airdrop Server `/set_airdrop` endpoint with the user's address and calculated airdrop amount as parameters.
-14. **Airdrop Determination**: The Airdrop Server determines the airdrop amount based on the user's transactions and returns it to the backend.
-15. **Display Airdrop Amount**: The backend returns the airdrop amount to the frontend, which then displays it to the user.
-16. **Airdrop Confirmation**: The user clicks 'Confirm Airdrop', and the frontend sends a GET request to the backend `/send-airdrop-parent` endpoint with the user's address and step as parameters.
-17. **Final Reward Calculation**: The backend calculates the final reward.
-18. **Airdrop Reward Request**: The backend sends a GET request to the Airdrop Server `/append_airdrop` endpoint with the user's address and final reward amount as parameters.
-19. **Reward Transaction Processing**: The Airdrop Server processes the reward transaction and returns the transaction result to the backend.
-20. **Airdrop Reward Delivery**: The Airdrop Server sends the airdrop reward to the user.
+1. **User Action**: The Child User completes the required steps and clicks 'Check Eligibility' on the Frontend.
+2. **Eligibility Check**: The Frontend sends a GET request to the Backend `/check-purchase` endpoint with the user's address as a parameter.
+3. **Backend Processing**: The Backend checks if the user has purchased the $Lotso 1st generation token. If the purchase status is not logged in the database, the Backend sends a GET request to the Airdrop Server `/check_eligibility` endpoint with the user's address as a parameter.
+4. **Airdrop Server Query**: The Airdrop Server returns the purchase status to the Backend, which then forwards it to the Frontend.
+5. **Display Result**: The Frontend continues if the user has not purchased. It then sends a GET request to the Backend `/check-like` endpoint with the tweetId as a parameter.
+6. **Twitter Server Check**: The Backend checks if the user has liked the tweet. If the check is performed within 2 hours, the Backend returns the previous check result. Otherwise, it sends a GET request to the Twitter Server to check if the user has liked the tweet.
+7. **Display Result**: The Backend returns the check result to the Frontend, which then rejects the user if they have not finished the required steps.
+8. **Airdrop Amount Check**: The Frontend sends a GET request to the Backend `/check-airdrop-amount` endpoint with the user's address, step, and promotion code as parameters. The Backend queries the airdrop amount from the database and returns the available airdrop amount to the Frontend.
+9. **Display Result**: The Frontend rejects the user if the airdrop is not available. Otherwise, it sends a GET request to the Backend `/check-airdrop` endpoint with the user's address as a parameter to check if the user has claimed the airdrop.
+10. **Airdrop Claim Check**: The Backend checks if the user has logged in the database and returns the airdrop logging status to the Frontend, which then displays the result to the user.
+11. **User Action**: If the airdrop is available, the user clicks 'Claim Airdrop'. The Frontend reads the contract from the Blockchain to check the available airdrop amount.
+12. **Airdrop Amount Check**: The Blockchain returns the available airdrop amount to the Frontend, which then rejects the user if the airdrop is not available.
+13. **Airdrop Claim Log**: The Frontend logs the user's airdrop claim by sending a GET request to the Backend `/log-airdrop` endpoint with the user's address as a parameter. The Backend logs the airdrop claim in the database and returns the airdrop logging status to the Frontend.
+14. **Display Result**: The Frontend displays the transaction success result to the user.
+15. **User Action**: If the transaction is successful, the user clicks 'Confirm Airdrop'. The Frontend sends a transaction to the Blockchain to claim the airdrop.
+16. **Transaction Result**: The Blockchain returns the transaction result to the Frontend, which then displays the transaction result to the user.
+17. **Airdrop Reward Request**: If the transaction is successful, the Frontend sends a GET request to the Backend `/send-airdrop-parent` endpoint with the user's address and step as parameters. The Backend calculates the final reward and sends a GET request to the Airdrop Server `/append_airdrop` endpoint with the user's address and final reward amount as parameters.
+18. **Reward Transaction Processing**: The Airdrop Server processes the reward transaction and sends the reward to the parent user. It then processes the reward transaction on the Blockchain and returns the transaction result to the Backend.
+19. **Display Result**: The Backend returns the airdrop amount to the Frontend, which then displays the transaction result and a promotion code to the user.
+20. **User Action**: The user clicks 'Generate Promotion Code'. The Frontend sends a GET request to the Backend `/generate-promotion-code` endpoint with the user's address as a parameter.
+21. **Promotion Code Generation**: The Backend checks if the user has finished the required steps and generates a promotion code for the user, then returns it to the Frontend.
+22. **Display Promotion Code**: The Frontend displays the promotion code to the user.
 
 ### Additional Details
 
