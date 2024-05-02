@@ -100,7 +100,7 @@ const airdropClaimSchema = {
 const promotionCodeSchema = {
     $jsonSchema: {
         bsonType: "object",
-        required: ["userAddress", "promotionCode", "totalRewardAmount", "createdAt"],
+        required: ["userAddress", "promotionCode", "createdAt"],
         properties: {
             userAddress: {
                 bsonType: "string",
@@ -112,7 +112,7 @@ const promotionCodeSchema = {
             },
             totalRewardAmount: {
                 bsonType: "int",
-                description: "must be an integer and is required",
+                description: "must be an integer and is optional",
             },
             createdAt: {
                 bsonType: "date",
