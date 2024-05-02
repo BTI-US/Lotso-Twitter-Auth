@@ -257,7 +257,12 @@ async function checkInteraction(userId, targetId, type, requestBody = null) {
         // Execute the query to fetch the latest log entry
         const logEntry = await userDbConnection.collection('twitterInteractions').findOne(query, options);
 
-        if (logEntry) {
+        const requiredProperties = ['userId', 'targetId', 'type', 'createdAt'];
+
+        // Check if all properties in logEntry are in activation
+        const hasRequiredProperties = logEntry && requiredProperties.every(prop => prop in logEntry);
+
+        if (hasRequiredProperties) {
             // Check if the interaction was successful based on the existence of a response and absence of an error
             if (!!logEntry.response && !logEntry.error) {
                 const currentTime = new Date();
@@ -990,20 +995,24 @@ function generateRandomString(length) {
 async function generatePromotionCode(userAddress) {
     try {
         // Check if there is already a promotion code for this user
-        const existingCode = await userDbConnection.collection('promotionCode').findOne({ userAddress });
-        if (existingCode) {
-            return existingCode.promotionCode; // Return the existing code if found
+        let logEntry = await userDbConnection.collection('promotionCode').findOne({ userAddress });
+
+        // Check if required properties are in the logEntry
+        if (logEntry && logEntry.promotionCode) {
+            return logEntry.promotionCode; // Return the existing code if found
         }
 
         // Generate a new code if not found
         const promotionCode = generateRandomString(16); // Function to generate a random string
-        await userDbConnection.collection('promotionCode').insertOne({
-            userAddress,
-            promotionCode,
-            createdAt: new Date(),
-        });
 
-        return promotionCode; // Return the new promotion code after successful insertion
+        // If the log entry is missing some properties, update or insert it
+        logEntry = await userDbConnection.collection('promotionCode').findOneAndUpdate(
+            { userAddress },
+            { $set: { userAddress, promotionCode, createdAt: new Date() } },
+            { upsert: true, returnOriginal: false },
+        ).value;
+
+        return logEntry.promotionCode; // Return the new promotion code after successful insertion
     } catch (error) {
         console.error('Failed to generate and store promotion code:', error);
         error.code = 10029;
@@ -1030,7 +1039,7 @@ async function usePromotionCode(userAddress, promotionCode) {
         // Fetch the promotion document using the promotion code
         const promoDoc = await userDbConnection.collection('promotionCode').findOne({ promotionCode }, { sort: { createdAt: -1 } });
 
-        if (promoDoc) {
+        if (promoDoc && promoDoc.userAddress) {
             // Proceed with updating the user record if the promotion code is found
             await userDbConnection.collection('users').updateOne(
                 { userAddress }, // Filter condition to find the user record
@@ -1066,7 +1075,7 @@ async function checkIfPurchased(userAddress) {
     try {
         const user = await userDbConnection.collection('users').findOne({ userAddress });
 
-        if (!user) {
+        if (!user || user.purchase === undefined) {
             // Endpoint: /check_eligibility
             const apiUrl = `${airdropCheckAddress}?address=${encodeURIComponent(userAddress)}`;
             const response = await fetch(apiUrl);
@@ -1077,11 +1086,12 @@ async function checkIfPurchased(userAddress) {
                 throw new Error(data.error || 'Error occurred while checking eligibility');
             }
 
-            // Insert a new user with the userAddress and isBuyer based on the API result
-            await userDbConnection.collection('users').insertOne({
-                userAddress,
-                purchase: purchaseStatus === true,
-            });
+            // Update the user record if it exists, otherwise create a new one
+            await userDbConnection.collection('users').updateOne(
+                { userAddress },
+                { $set: { purchase: purchaseStatus === true } },
+                { upsert: true },
+            );
 
             return { purchase: purchaseStatus === true };
         }
@@ -1182,18 +1192,17 @@ async function appendRewardParentUser(userAddress, rewardAmount) {
     try {
         // Check if there is already a promotion code for this user
         const doc = await userDbConnection.collection('promotionCode').findOne({ userAddress });
-        if (!doc) throw new Error('No promotion code found for parent user.');
-
-        if (doc.totalRewardAmount) {
-            // Append the reward amount to the existing total reward amount
-            await userDbConnection.collection('promotionCode').updateOne(
-                { userAddress },
-                { $set: { totalRewardAmount: rewardAmount } },
-            );
-            return ({ totalRewardAmount: rewardAmount });
+        if (!doc || !doc.totalRewardAmount) {
+            throw new Error('No total reward amount found for this parent user.');
         }
 
-        throw new Error('No total reward amount found for parent user.');
+        // Append the reward amount to the existing total reward amount
+        await userDbConnection.collection('promotionCode').updateOne(
+            { userAddress },
+            { $set: { totalRewardAmount: rewardAmount } },
+        );
+
+        return ({ totalRewardAmount: rewardAmount });
     } catch (error) {
         console.error('Failed to append reward for parent user:', error);
         error.code = 10035;
