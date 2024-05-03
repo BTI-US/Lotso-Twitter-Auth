@@ -145,6 +145,9 @@ sequenceDiagram
     F-->>U: Reject if not finished required steps
     F->>B: Check the user's airdrop amount <br>GET Endpoint: /check-airdrop-amount <br>Parameters: address, step
     note over B: Query the airdrop amount from database
+    B->>S: Request for specific airdrop amount <br>POST Endpoint: /set_airdrop <br>Body: address, purchase, amount
+    note over S: Process the airdrop amount request <br> Send airdrop amount to the user
+    S-->>B: Return the available airdrop amount <br>Body: JSON object
     B-->>F: Return the available airdrop amount <br> 300,000 $Lotso tokens if available
     F-->>U: Rejected if not available
     F->>B: Check if user has claimed the airdrop <br>GET Endpoint: /check-airdrop <br>Parameter: address
@@ -155,7 +158,6 @@ sequenceDiagram
     U->>F: Step 2 <br>Clicks 'Claim Airdrop'
     F->>BC: Read the contract to check the available airdrop amount
     BC-->>F: Return the available airdrop amount
-    F-->>U: Rejected if airdrop is not available
     F-->>U: Display transaction succeed result <br>(Rejected if airdrop is not available)
     note over U: Proceed if airdrop available
 
@@ -235,6 +237,9 @@ sequenceDiagram
     F-->>U: Reject if not finished required steps
     F->>B: Check the user's airdrop amount <br>GET Endpoint: /check-airdrop-amount <br>Parameters: address, step, promotionCode
     note over B: Query the airdrop amount from database
+    B->>S: Request for specific airdrop amount <br>POST Endpoint: /set_airdrop <br>Body: address, purchase, amount
+    note over S: Process the airdrop amount request <br> Send airdrop amount to the user
+    S-->>B: Return the available airdrop amount <br>Body: JSON object
     B-->>F: Return the available airdrop amount <br> 100,000 $Lotso tokens if available
     F-->>U: Rejected if not available
     F->>B: Check if user has claimed the airdrop <br>GET Endpoint: /check-airdrop <br>Parameter: address

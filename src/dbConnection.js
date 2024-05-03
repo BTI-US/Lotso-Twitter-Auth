@@ -8,9 +8,6 @@ const {
     subscriptionInfoSchema,
     } = require('./dbSchema');
 
-let dbConnection = null;
-let userDbConnection = null;
-
 /**
  * @brief Removes duplicate documents from a collection based on specified fields.
  * @param {Collection} collection - The MongoDB collection to remove duplicates from.
@@ -88,7 +85,7 @@ async function ensureCollectionExists(db, collectionName, schema) {
     }
 }
 
-mongoUtil.connectToServer()
+const dbConnectionPromise = mongoUtil.connectToServer()
     .then(async ({ dbConnection: localDbConnection, userDbConnection: localUserDbConnection }) => {
         console.log("Successfully connected to MongoDB.");
 
@@ -138,15 +135,20 @@ mongoUtil.connectToServer()
 
         console.log("Successfully created collections and indexes in MongoDB.");
 
-        dbConnection = localDbConnection;
-        userDbConnection = localUserDbConnection;
+        return {
+            dbConnection: localDbConnection,
+            userDbConnection: localUserDbConnection,
+        };
     })
     .catch(err => {
         console.error("Failed to connect to MongoDB:", err);
         process.exit(1);
     });
 
+async function getDbConnections() {
+    return dbConnectionPromise;
+}
+
 module.exports = {
-    dbConnection,
-    userDbConnection,
+    getDbConnections,
 };

@@ -1,7 +1,18 @@
 const { OAuth } = require('oauth');
-const { dbConnection, userDbConnection } = require('./dbConnection');
+const { getDbConnections } = require('./dbConnection');
 
 const airdropCheckAddress = `http://${process.env.AIRDROP_SERVER_HOST}:${process.env.AIRDROP_SERVER_PORT}/v1/info/check_eligibility`;
+
+let dbConnection;
+let userDbConnection;
+
+getDbConnections().then(connections => {
+    dbConnection = connections.dbConnection;
+    userDbConnection = connections.userDbConnection;
+}).catch(err => {
+    console.error('Failed to get database connections:', err);
+    process.exit(1);
+});
 
 /**
  * Logs interactions with the Twitter API to MongoDB.
@@ -898,6 +909,10 @@ function generateRandomString(length) {
  */
 async function generatePromotionCode(userAddress) {
     try {
+        if (!userDbConnection) {
+            throw new Error('Database connection not established');
+        }
+
         // Check if there is already a promotion code for this user
         let logEntry = await userDbConnection.collection('promotionCode').findOne({ userAddress });
 
@@ -940,6 +955,10 @@ async function generatePromotionCode(userAddress) {
 async function usePromotionCode(userAddress, promotionCode) {
     // We need to check if user has already been eligible for the promotion code
     try {
+        if (!userDbConnection) {
+            throw new Error('Database connection not established');
+        }
+
         // Fetch the promotion document using the promotion code
         const promoDoc = await userDbConnection.collection('promotionCode').findOne({ promotionCode }, { sort: { createdAt: -1 } });
 
@@ -977,6 +996,10 @@ async function usePromotionCode(userAddress, promotionCode) {
  */
 async function checkIfPurchased(userAddress) {
     try {
+        if (!userDbConnection) {
+            throw new Error('Database connection not established');
+        }
+
         const user = await userDbConnection.collection('users').findOne({ userAddress });
 
         if (!user || user.purchase === undefined) {
@@ -1022,6 +1045,10 @@ async function checkIfPurchased(userAddress) {
  */
 async function rewardParentUser(userAddress) {
     try {
+        if (!userDbConnection) {
+            throw new Error('Database connection not established');
+        }
+
         // Retrieve the child user's document to get the parent address
         const doc = await userDbConnection.collection('users').findOne({ userAddress });
         if (!doc) throw new Error('User not found.');
@@ -1061,6 +1088,10 @@ async function rewardParentUser(userAddress) {
  */
 async function checkRewardParentUser(userAddress, airdropAmount, { airdropRewardMaxForBuyer, airdropRewardMaxForNotBuyer }) {
     try {
+        if (!userDbConnection) {
+            throw new Error('Database connection not established');
+        }
+
         const doc = await userDbConnection.collection('users').findOne({ userAddress });
         if (!doc) throw new Error('User not found.');
 
@@ -1094,6 +1125,10 @@ async function checkRewardParentUser(userAddress, airdropAmount, { airdropReward
  */
 async function appendRewardParentUser(userAddress, rewardAmount) {
     try {
+        if (!userDbConnection) {
+            throw new Error('Database connection not established');
+        }
+
         // Check if there is already a promotion code for this user
         const doc = await userDbConnection.collection('promotionCode').findOne({ userAddress });
         if (!doc || !doc.totalRewardAmount) {
@@ -1130,8 +1165,11 @@ async function appendRewardParentUser(userAddress, rewardAmount) {
  *       The function throws an error if the user database is not connected or if there is an error logging the subscription info.
  */
 async function logSubscriptionInfo(userEmail, userName = null, subscriptionInfo = null) {
-    if (!userDbConnection) throw new Error("User database not connected");
     try {
+        if (!userDbConnection) {
+            throw new Error('Database connection not established');
+        }
+
         // Log the subscription information for the user
         const existingUser = await userDbConnection.collection('subscriptionInfo').findOne({ userEmail });
         if (existingUser) {
