@@ -258,7 +258,7 @@ sequenceDiagram
     BC-->>F: Return transaction result <br> Rejected if transaction failed
     F->>B: Log the user's airdrop claim <br>GET Endpoint: /log-airdrop <br>Parameter: address
     note over B: Log the airdrop claim in the database
-    B->>F: Return the airdrop logging status <br>Body: JSON object
+    B-->>F: Return the airdrop logging status <br>Body: JSON object
     F-->>U: Display transaction result
     note over F: Proceed if transaction successful
     F->>B: Send airdrop rweard to parent <br>GET Endpoint: /send-airdrop-parent <br>Parameters: address, step

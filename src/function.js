@@ -146,7 +146,6 @@ async function checkUserSteps(userId, requiredTypes, sameType = null) {
  * @param {string} userId - The ID of the user.
  * @param {string} targetId - The ID of the target user or tweet.
  * @param {string} type - The type of interaction (e.g., 'follow', 'like').
- * @param {Object|null} [requestBody=null] - The request body of the interaction.
  * 
  * @return {Promise<Object|null>} A promise that resolves with the latest log entry, or null if no entry is found.
  * 
@@ -154,7 +153,7 @@ async function checkUserSteps(userId, requiredTypes, sameType = null) {
  * for a specific user and interaction type. If the user database is not connected, an error will be thrown.
  * The log entry is returned as an object, or null if no entry is found.
  */
-async function checkInteraction(userId, targetId, type, requestBody = null) {
+async function checkInteraction(userId, targetId, type) {
     try {
         if (!userDbConnection) {
             console.error("User database not connected");
@@ -885,6 +884,12 @@ async function checkIfFinished(userId, requiredTypes) {
     }
 }
 
+/**
+ * @brief Generates a random string of the specified length.
+ * @param {number} length - The length of the random string to generate.
+ * @return {string} The randomly generated string.
+ * @note This function uses characters from the set of uppercase letters, lowercase letters, and digits.
+ */
 function generateRandomString(length) {
     let result = '';
     const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
@@ -1170,22 +1175,21 @@ async function logSubscriptionInfo(userEmail, userName = null, subscriptionInfo 
             throw new Error('Database connection not established');
         }
 
+        const options = {
+            sort: { createdAt: -1 },  // Sort by creation date in descending order to get the most recent log
+            limit: 1,  // Limit the result to only one document
+        };
+
         // Log the subscription information for the user
-        const existingUser = await userDbConnection.collection('subscriptionInfo').findOne({ userEmail });
+        const existingUser = await userDbConnection.collection('subscriptionInfo').findOne({ userEmail, userName, subscriptionInfo }, options);
         if (existingUser) {
             const updateFields = {
                 createdAt: new Date(),
             };
 
-            if (userName) {
-                updateFields.userName = userName;
-            }
-            if (subscriptionInfo) {
-                updateFields.subscriptionInfo = subscriptionInfo;
-            }
-
+            // Update the existing subscription info if it is different
             await userDbConnection.collection('subscriptionInfo').updateOne(
-                { userEmail },
+                { userEmail, userName, subscriptionInfo },
                 {
                     $set: updateFields,
                 },

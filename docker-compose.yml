@@ -2,8 +2,8 @@ version: '3.8'
 
 services:
   twitter-auth:
-    container_name: twitter-auth
-    image: twitter-auth:latest
+    container_name: lotso-twitter-auth
+    image: lotso-twitter-auth:latest
     volumes:
       - ${HOST_CERT_FOLDER}:${CONTAINER_CERT_FOLDER}
     build: .

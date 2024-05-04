@@ -90,41 +90,41 @@ const dbConnectionPromise = mongoUtil.connectToServer()
         console.log("Successfully connected to MongoDB.");
 
         const collections = [
-            { 
-                db: localDbConnection, 
-                name: 'twitterInteractions', 
-                schema: logTwitterInteractionsSchema, 
+            {
+                db: localDbConnection,
+                name: 'twitterInteractions',
+                schema: logTwitterInteractionsSchema,
                 index: { fields: { userId: 1, targetId: 1, type: 1 }, unique: false },
             },
-            { 
-                db: localUserDbConnection, 
-                name: 'twitterInteractions', 
-                schema: twitterInteractionsSchema, 
+            {
+                db: localUserDbConnection,
+                name: 'twitterInteractions',
+                schema: twitterInteractionsSchema,
                 index: { fields: { userId: 1, targetId: 1, type: 1 }, unique: true },
             },
-            { 
-                db: localUserDbConnection, 
-                name: 'airdropClaim', 
-                schema: airdropClaimSchema, 
+            {
+                db: localUserDbConnection,
+                name: 'airdropClaim',
+                schema: airdropClaimSchema,
                 index: { fields: { userAddress: 1 }, unique: true },
             },
-            { 
-                db: localUserDbConnection, 
-                name: 'promotionCode', 
-                schema: promotionCodeSchema, 
+            {
+                db: localUserDbConnection,
+                name: 'promotionCode',
+                schema: promotionCodeSchema,
                 index: { fields: { userAddress: 1 }, unique: true },
             },
-            { 
-                db: localUserDbConnection, 
-                name: 'users', 
-                schema: userSchema, 
+            {
+                db: localUserDbConnection,
+                name: 'users',
+                schema: userSchema,
                 index: { fields: { userAddress: 1 }, unique: true },
             },
-            { 
-                db: localUserDbConnection, 
-                name: 'subscriptionInfo', 
-                schema: subscriptionInfoSchema, 
-                index: { fields: { userEmail: 1 }, unique: true },
+            {
+                db: localUserDbConnection,
+                name: 'subscriptionInfo',
+                schema: subscriptionInfoSchema,
+                index: { fields: { userEmail: 1, userName: 1, subscriptionInfo: 1 }, unique: true },
             },
         ];
 
