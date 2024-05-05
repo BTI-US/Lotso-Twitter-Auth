@@ -106,7 +106,7 @@ const dbConnectionPromise = mongoUtil.connectToServer()
                 db: localUserDbConnection,
                 name: 'airdropClaim',
                 schema: airdropClaimSchema,
-                index: { fields: { userAddress: 1 }, unique: true },
+                index: { fields: { userId: 1, userAddress: 1 }, unique: true },
             },
             {
                 db: localUserDbConnection,

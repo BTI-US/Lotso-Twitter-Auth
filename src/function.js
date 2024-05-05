@@ -260,7 +260,7 @@ async function checkIfClaimedAirdrop(userId, userAddress) {
  * @note This function logs a user's airdrop claim to the user database. If the user database is not connected, an error will be thrown.
  * The function checks if any address has been logged for the provided userId. If no address has been logged, the userAddress is added to the log entry.
  * The log entry is then inserted into the 'airdropClaim' collection in the user database.
- * If an address has already been logged for the userId, the userAddress is not added to the log entry.
+ * If an address along with the userId both has already been logged, the log entry is updated with the new userAddress.
  * The function returns an object indicating whether the claim was successfully logged, with 'isLogged' set to true if the claim was logged,
  * or false if the claim was not logged due to a previous log entry for the userId.
  */
@@ -270,30 +270,24 @@ async function logUserAirdrop(userId, userAddress) {
             console.error("User database not connected");
             throw new Error("User database not connected");
         }
-    
-        // Check if any address has been logged for this userId
-        const existingEntry = await userDbConnection.collection('airdropClaim').findOne({ userId });
-    
+
         // Prepare the log entry data
         const logEntry = {
             userId,
+            userAddress,
             createdAt: new Date(),
         };
-    
-        // Only add the userAddress to the log entry if no address has been logged for this userId before
-        if (!existingEntry) {
-            logEntry.userAddress = userAddress; // Log the address only if this user hasn't logged any address before
-            // Log the interaction to the database
-            await userDbConnection.collection('airdropClaim').insertOne(logEntry);
-            console.log(`Airdrop logged for userId: ${userId} with address: ${userAddress}`);
-    
-            return { isLogged: true };
-        }
-        // Update the existing entry instead of inserting a new one
-        await userDbConnection.collection('airdropClaim').updateOne({ userId }, { $set: logEntry });
-        console.log(`Airdrop re-logged for userId: ${userId}, address not repeated due to previous log.`);
-    
-        return { isLogged: false };
+
+        // Check if any address has been logged for this userId, and update the log entry if found
+        // If not found, insert a new log entry
+        await userDbConnection.collection('airdropClaim').findOneAndUpdate(
+            { userId, userAddress },
+            { $set: logEntry },
+            { upsert: true, returnOriginal: false },
+        );
+
+        console.log(`Airdrop logged for userId: ${userId} with address: ${userAddress}`);    
+        return { isLogged: true };
     } catch (error) {
         console.error("Error logging airdrop claim:", error);
         error.code = 10022;
@@ -933,10 +927,10 @@ async function generatePromotionCode(userAddress) {
         logEntry = await userDbConnection.collection('promotionCode').findOneAndUpdate(
             { userAddress },
             { $set: { userAddress, promotionCode, createdAt: new Date() } },
-            { upsert: true, returnOriginal: false },
+            { upsert: true, returnOriginal: false, returnDocument: 'after' },
         ).value;
 
-        return logEntry.promotionCode; // Return the new promotion code after successful insertion
+        return logEntry.value.promotionCode; // Return the new promotion code after successful insertion
     } catch (error) {
         console.error('Failed to generate and store promotion code:', error);
         error.code = 10029;
@@ -1103,11 +1097,15 @@ async function checkRewardParentUser(userAddress, airdropAmount, { airdropReward
         const maxReward = doc.purchase ? parseInt(airdropRewardMaxForBuyer, 10) : parseInt(airdropRewardMaxForNotBuyer, 10);
 
         const docParent = await userDbConnection.collection('promotionCode').findOne({ userAddress });
-        if (!docParent || !docParent.totalRewardAmount) throw new Error('No promotion code or total reward amount found for parent user.');
+        if (!docParent) throw new Error('No parent user address found.');
 
         let appendAmount = 0;
-        if (docParent.totalRewardAmount < maxReward) {
-            appendAmount = Math.min(maxReward - docParent.totalRewardAmount, parseInt(airdropAmount, 10));
+        if (docParent.totalRewardAmount) {
+            if (docParent.totalRewardAmount < maxReward) {
+                appendAmount = Math.min(maxReward - docParent.totalRewardAmount, parseInt(airdropAmount, 10));
+            }
+        } else {
+            appendAmount = Math.min(maxReward, parseInt(airdropAmount, 10));
         }
 
         return ({ appendAmount, reward: appendAmount > 0, maxReward });
@@ -1136,7 +1134,7 @@ async function appendRewardParentUser(userAddress, rewardAmount) {
 
         // Check if there is already a promotion code for this user
         const doc = await userDbConnection.collection('promotionCode').findOne({ userAddress });
-        if (!doc || !doc.totalRewardAmount) {
+        if (!doc) {
             throw new Error('No total reward amount found for this parent user.');
         }
 
