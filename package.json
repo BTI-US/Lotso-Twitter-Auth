@@ -31,7 +31,7 @@
     "express": "^4.19.2",
     "express-session": "^1.18.0",
     "globals": "^15.1.0",
-    "mongodb": "^6.5.0",
+    "mongodb": "^6.6.0",
     "oauth": "^0.10.0",
     "redis": "^4.6.13"
   },
