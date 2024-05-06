@@ -842,7 +842,9 @@ app.get('/v1/info/recipients_count', async (req, res) => {
     try {
         // Endpoint: /recipients_count
         const response = await fetch(recipientCheckAddress);
-        res.json(response);
+        const data = await response.json();
+        //console.log('recipients_count checking response:', data);
+        res.json(data);
     } catch (error) {
         console.error("Failed to get recipients count:", error);
         const response = createResponse(10036, error.message);

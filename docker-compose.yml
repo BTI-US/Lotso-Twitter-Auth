@@ -39,10 +39,10 @@ services:
       # - airdrop-server
     restart: always
     networks:
-      - lotso-main-network
+      - ${DOCKER_NETWORK:-lotso-main-network}
 
   mongodb:
-    container_name: mongodb
+    container_name: ${MONGODB_IMG_NAME:-mongodb}
     image: mongo
     environment:
       MONGO_INITDB_ROOT_USERNAME: ${MONGODB_USERNAME:-admin}
@@ -50,20 +50,22 @@ services:
     ports:
       - "${MONGODB_PORT:-27017}:27017"
     volumes:
-      - "/root/mongodb:/data/db"
+      - "${MONGODB_PATH:-/root/mongodb}:/data/db"
     restart: always
     networks:
-      - lotso-main-network
+      - ${DOCKER_NETWORK:-lotso-main-network}
 
   redis:
-    container_name: redis
+    container_name: ${REDIS_IMG_NAME:-redis}
     image: redis:latest
     ports:
       - "${REDIS_PORT:-6000}:6379"
     restart: always
     networks:
-      - lotso-main-network
+      - ${DOCKER_NETWORK:-lotso-main-network}
 
 networks:
   lotso-main-network:
+    external: true
+  lotso-dev-network:
     external: true

@@ -383,6 +383,7 @@ CERT_PATH=/etc/ssl/certs/fullchain2.pem \
 PRIVKEY_PATH=/etc/ssl/certs/privkey2.pem \
 HOST_CERT_FOLDER=/etc/letsencrypt/archive/btiplatform.com \
 CONTAINER_CERT_FOLDER=/etc/ssl/certs \
+MONGODB_PATH=/root/mongodb-main \
 REDIS_PORT=6000 \
 AIRDROP_SERVER_PORT=8081 \
 AIRDROP_PER_STEP=100000 \
@@ -391,7 +392,8 @@ AIRDROP_REWARD_AMOUNT=10000 \
 LOTSO_PURCHASED_USER_AMOUNT=300000 \
 WEBPAGE_ADDRESS=https://lotso.org \
 AUTH_WEB_ADDRESS=https://api.btiplatform.com \
-docker-compose up -d
+DOCKER_NETWORK=lotso-main-network \
+docker-compose up -p main -d
 ```
 
 To remove the Docker container, run:
@@ -409,6 +411,7 @@ CERT_PATH=/etc/ssl/certs/fullchain2.pem \
 PRIVKEY_PATH=/etc/ssl/certs/privkey2.pem \
 HOST_CERT_FOLDER=/etc/letsencrypt/archive/btiplatform.com \
 CONTAINER_CERT_FOLDER=/etc/ssl/certs \
+MONGODB_PATH=/root/mongodb-main \
 REDIS_PORT=6000 \
 AIRDROP_SERVER_PORT=8081 \
 AIRDROP_PER_STEP=100000 \
@@ -417,7 +420,8 @@ AIRDROP_REWARD_AMOUNT=10000 \
 LOTSO_PURCHASED_USER_AMOUNT=300000 \
 WEBPAGE_ADDRESS=https://lotso.org \
 AUTH_WEB_ADDRESS=https://api.btiplatform.com \
-docker-compose down
+DOCKER_NETWORK=lotso-main-network \
+docker-compose -p main down
 ```
 
 ## How to Acquire Twitter API Keys
