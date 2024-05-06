@@ -261,7 +261,7 @@ sequenceDiagram
     B-->>F: Return the airdrop logging status <br>Body: JSON object
     F-->>U: Display transaction result
     note over F: Proceed if transaction successful
-    F->>B: Send airdrop rweard to parent <br>GET Endpoint: /send-airdrop-parent <br>Parameters: address, step
+    F->>B: Send airdrop reward to parent <br>GET Endpoint: /send-airdrop-parent <br>Parameters: address, step
     note over B: Calculate final reward
     B->>S: Request airdrop reward <br>GET Endpoint: /append_airdrop <br>Parameters: address, amount
     note over S: Process reward transaction <br> Send reward to parent user
@@ -370,6 +370,7 @@ node src/start.js
 
 Run the Docker container using the following command:
 ```bash
+IMG_NAME=lotso-twitter-auth-main \
 SERVER_PORT=5000 \
 MONGODB_DB=twitterLogs \
 MONGODB_USERDB=twitterUsers \
@@ -384,16 +385,18 @@ HOST_CERT_FOLDER=/etc/letsencrypt/archive/btiplatform.com \
 CONTAINER_CERT_FOLDER=/etc/ssl/certs \
 REDIS_PORT=6000 \
 AIRDROP_SERVER_PORT=8081 \
-AIRDROP_PER_STEP=50000 \
+AIRDROP_PER_STEP=100000 \
+AIRDROP_PER_PERSON=50000 \
 AIRDROP_REWARD_AMOUNT=10000 \
 LOTSO_PURCHASED_USER_AMOUNT=300000 \
 WEBPAGE_ADDRESS=https://lotso.org \
-AUTH_WEB_ADDRESS=https://oauth.btiplatform.com \
+AUTH_WEB_ADDRESS=https://api.btiplatform.com \
 docker-compose up -d
 ```
 
 To remove the Docker container, run:
 ```bash
+IMG_NAME=lotso-twitter-auth-main \
 SERVER_PORT=5000 \
 MONGODB_DB=twitterLogs \
 MONGODB_USERDB=twitterUsers \
@@ -408,11 +411,12 @@ HOST_CERT_FOLDER=/etc/letsencrypt/archive/btiplatform.com \
 CONTAINER_CERT_FOLDER=/etc/ssl/certs \
 REDIS_PORT=6000 \
 AIRDROP_SERVER_PORT=8081 \
-AIRDROP_PER_STEP=50000 \
+AIRDROP_PER_STEP=100000 \
+AIRDROP_PER_PERSON=50000 \
 AIRDROP_REWARD_AMOUNT=10000 \
 LOTSO_PURCHASED_USER_AMOUNT=300000 \
 WEBPAGE_ADDRESS=https://lotso.org \
-AUTH_WEB_ADDRESS=https://oauth.btiplatform.com \
+AUTH_WEB_ADDRESS=https://api.btiplatform.com \
 docker-compose down
 ```
 
@@ -434,7 +438,7 @@ Refer to the [Twitter API Rate Limiting](https://developer.twitter.com/en/docs/t
 1. Click the 'Edit' button in the 'User Authentication Settings' section.
 2. In the `App permission` field, select 'Read and write'.
 3. In the `Type of App` field, select 'Web App, Automated App or Bot'.
-4. In the `App info` field, set the `Callback URL / Redirect URL` to `https://oauth.btiplatform.com/twitter-callback`, and set the `Website URL` to `https://lotso.org`.
+4. In the `App info` field, set the `Callback URL / Redirect URL` to `https://api.btiplatform.com/twitter-callback`, and set the `Website URL` to `https://lotso.org`.
 5. Click 'Save'.
 
 ## REST API Endpoints
@@ -457,6 +461,7 @@ The application has the following endpoints:
 - `/generate-promotion-code`: Generates a promotion code for the user.
 - `/send-airdrop-parent`: Sends an airdrop to the parent user for rewards.
 - `/subscription-info`: Fetches the subscription information for the user.
+- `/v1/info/recipients_count`: Fetches the number of recipients for the airdrop.
 
 Refer to the [API Documentation](https://github.com/BTI-US/Lotso-Twitter-Auth/wiki/REST_API_Endpoints) for detailed information on each endpoint.
 
@@ -505,6 +510,7 @@ All possible return codes are as follows:
 | `10033` | Error in rewarding parent user                              |
 | `10034` | Failed to check reward for parent user                      |
 | `10035` | Error appending reward for parent user                      |
+| `10036` | Error checking recipient count                              |
 | `10040` | Failed to get user email                                    |
 | `10041` | Error logging subscription info                             |
 | `10050` | Failed to get OAuth request token                           |

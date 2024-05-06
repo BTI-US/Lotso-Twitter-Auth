@@ -12,8 +12,9 @@ const { createResponse } = require('./response');
 
 const airdropCountAddress = `http://${process.env.AIRDROP_SERVER_HOST}:${process.env.AIRDROP_SERVER_PORT}/v1/info/set_airdrop`;
 const airdropRewardAddress = `http://${process.env.AIRDROP_SERVER_HOST}:${process.env.AIRDROP_SERVER_PORT}/v1/info/append_airdrop`;
+const recipientCheckAddress = `http://${process.env.AIRDROP_SERVER_HOST}:${process.env.AIRDROP_SERVER_PORT}/v1/info/recipients_count`;
 const webpageAddress = process.env.WEBPAGE_ADDRESS || 'https://lotso.org';
-const authWebAddress = process.env.AUTH_WEB_ADDRESS || 'https://oauth.btiplatform.com';
+const authWebAddress = process.env.AUTH_WEB_ADDRESS || 'https://api.btiplatform.com';
 const airdropRewardMaxForBuyer = process.env.AIRDROP_REWARD_MAX_FOR_BUYER || '10000000';
 const airdropRewardMaxForNotBuyer = process.env.AIRDROP_REWARD_MAX_FOR_NOT_BUYER || '2000000';
 const airdropPerPerson = process.env.AIRDROP_PER_PERSON || '50000';
@@ -834,6 +835,21 @@ app.get('/subscription-info', async (req, res) => {
     }
 });
 app.options('/subscription-info', cors(corsOptions)); // Enable preflight request for this endpoint
+
+app.get('/v1/info/recipients_count', async (req, res) => {
+    console.log("Endpoint hit: /v1/info/recipients_count");
+
+    try {
+        // Endpoint: /recipients_count
+        const response = await fetch(recipientCheckAddress);
+        res.json(response);
+    } catch (error) {
+        console.error("Failed to get recipients count:", error);
+        const response = createResponse(10036, error.message);
+        res.status(500).json(response);
+    }
+});
+app.options('/v1/info/recipients_count', cors(corsOptions)); // Enable preflight request for this endpoint
 
 const SERVER_PORT = process.env.SERVER_PORT || 5000;
 const keyPath = process.env.PRIVKEY_PATH;

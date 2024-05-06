@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   twitter-auth:
-    container_name: lotso-twitter-auth
+    container_name: ${IMG_NAME:-lotso-twitter-auth}
     image: lotso-twitter-auth:latest
     volumes:
       - ${HOST_CERT_FOLDER}:${CONTAINER_CERT_FOLDER}
@@ -23,14 +23,14 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
       AIRDROP_SERVER_HOST: airdrop-server
-      AIRDROP_SERVER_PORT: ${AIRDROP_SERVER_PORT:-1423}
+      AIRDROP_SERVER_PORT: 1423
       AIRDROP_PER_STEP: ${AIRDROP_PER_STEP:-25000}
       AIRDROP_REWARD_MAX_FOR_BUYER: ${AIRDROP_REWARD_MAX_FOR_BUYER:-10000000}
       AIRDROP_REWARD_MAX_FOR_NOT_BUYER: ${AIRDROP_REWARD_MAX_FOR_NOT_BUYER:-2000000}
       AIRDROP_PER_PERSON: ${AIRDROP_PER_PERSON:-50000}
       LOTSO_PURCHASED_USER_AMOUNT: ${LOTSO_PURCHASED_USER_AMOUNT:-100000}
       WEBPAGE_ADDRESS: ${WEBPAGE_ADDRESS:-https://lotso.org}
-      AUTH_WEB_ADDRESS: ${AUTH_WEB_ADDRESS:-https://oauth.btiplatform.com}
+      AUTH_WEB_ADDRESS: ${AUTH_WEB_ADDRESS:-https://api.btiplatform.com}
     ports:
       - "${SERVER_PORT:-5000}:${SERVER_PORT:-5000}"
     depends_on:
@@ -39,7 +39,7 @@ services:
       # - airdrop-server
     restart: always
     networks:
-      - lotso-network
+      - lotso-main-network
 
   mongodb:
     container_name: mongodb
@@ -53,7 +53,7 @@ services:
       - "/root/mongodb:/data/db"
     restart: always
     networks:
-      - lotso-network
+      - lotso-main-network
 
   redis:
     container_name: redis
@@ -62,8 +62,8 @@ services:
       - "${REDIS_PORT:-6000}:6379"
     restart: always
     networks:
-      - lotso-network
+      - lotso-main-network
 
 networks:
-  lotso-network:
+  lotso-main-network:
     external: true
