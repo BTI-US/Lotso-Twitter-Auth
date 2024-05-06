@@ -465,7 +465,7 @@ The application has the following endpoints:
 - `/generate-promotion-code`: Generates a promotion code for the user.
 - `/send-airdrop-parent`: Sends an airdrop to the parent user for rewards.
 - `/subscription-info`: Fetches the subscription information for the user.
-- `/v1/info/recipients_count`: Fetches the number of recipients for the airdrop.
+- `/v1/info/recipient_info`: Fetches the number of recipients who have claimed the airdrop and the total amount of airdrop claimed.
 
 Refer to the [API Documentation](https://github.com/BTI-US/Lotso-Twitter-Auth/wiki/REST_API_Endpoints) for detailed information on each endpoint.
 
