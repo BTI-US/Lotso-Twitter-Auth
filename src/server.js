@@ -12,7 +12,7 @@ const { createResponse } = require('./response');
 
 const airdropCountAddress = `http://${process.env.AIRDROP_SERVER_HOST}:${process.env.AIRDROP_SERVER_PORT}/v1/info/set_airdrop`;
 const airdropRewardAddress = `http://${process.env.AIRDROP_SERVER_HOST}:${process.env.AIRDROP_SERVER_PORT}/v1/info/append_airdrop`;
-const recipientCheckAddress = `http://${process.env.AIRDROP_SERVER_HOST}:${process.env.AIRDROP_SERVER_PORT}/v1/info/recipients_count`;
+const recipientCheckAddress = `http://${process.env.AIRDROP_SERVER_HOST}:${process.env.AIRDROP_SERVER_PORT}/v1/info/recipient_info`;
 const webpageAddress = process.env.WEBPAGE_ADDRESS || 'https://lotso.org';
 const authWebAddress = process.env.AUTH_WEB_ADDRESS || 'https://api.btiplatform.com';
 const airdropRewardMaxForBuyer = process.env.AIRDROP_REWARD_MAX_FOR_BUYER || '10000000';
@@ -836,14 +836,14 @@ app.get('/subscription-info', async (req, res) => {
 });
 app.options('/subscription-info', cors(corsOptions)); // Enable preflight request for this endpoint
 
-app.get('/v1/info/recipients_count', async (req, res) => {
-    console.log("Endpoint hit: /v1/info/recipients_count");
+app.get('/v1/info/recipient_info', async (req, res) => {
+    console.log("Endpoint hit: /v1/info/recipient_info");
 
     try {
-        // Endpoint: /recipients_count
+        // Endpoint: /recipient_info
         const response = await fetch(recipientCheckAddress);
         const data = await response.json();
-        //console.log('recipients_count checking response:', data);
+        //console.log('recipient_info checking response:', data);
         res.json(data);
     } catch (error) {
         console.error("Failed to get recipients count:", error);
@@ -851,7 +851,7 @@ app.get('/v1/info/recipients_count', async (req, res) => {
         res.status(500).json(response);
     }
 });
-app.options('/v1/info/recipients_count', cors(corsOptions)); // Enable preflight request for this endpoint
+app.options('/v1/info/recipient_info', cors(corsOptions)); // Enable preflight request for this endpoint
 
 const SERVER_PORT = process.env.SERVER_PORT || 5000;
 const keyPath = process.env.PRIVKEY_PATH;

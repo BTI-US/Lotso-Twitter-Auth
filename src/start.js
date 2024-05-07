@@ -6,7 +6,7 @@ if (!process.env.DOCKER_ENV) {
     require('dotenv').config();
 }
 
-const airdropRecipientAddress = `http://${process.env.AIRDROP_SERVER_HOST}:${process.env.AIRDROP_SERVER_PORT}/v1/info/recipients_count`;
+const airdropRecipientAddress = `http://${process.env.AIRDROP_SERVER_HOST}:${process.env.AIRDROP_SERVER_PORT}/v1/info/recipient_info`;
 
 if (cluster.isMaster) {
     // Master process
@@ -37,7 +37,7 @@ if (cluster.isMaster) {
         console.log(`Server is running on port ${SERVER_PORT}`);
 
         // Send a GET request when the server starts
-        // Endpoint: /recipients_count
+        // Endpoint: /recipient_info
         fetch(airdropRecipientAddress)
             .then(res => res.json()) // parse response as JSON
             .then(body => {
