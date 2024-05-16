@@ -1033,7 +1033,7 @@ async function checkIfPurchased(userAddress) {
 }
 
 /**
- * @brief Rewards the parent user with the given user address.
+ * @brief Find the parent user address based on the child user address.
  * 
  * @param {string} userAddress - The address of the child user.
  * 
@@ -1043,7 +1043,7 @@ async function checkIfPurchased(userAddress) {
  * If the parent address is not found or no parent address is available, it returns null.
  * Any errors that occur during the process are logged and optionally re-thrown.
  */
-async function rewardParentUser(userAddress) {
+async function findParentUserAddress(userAddress) {
     try {
         if (!userDbConnection) {
             throw new Error('Database connection not established');
@@ -1154,6 +1154,35 @@ async function appendRewardParentUser(userAddress, rewardAmount) {
 }
 
 /**
+ * @brief Checks the total reward amount for a given user address.
+ * 
+ * @param {string} userAddress - The address of the user.
+ * 
+ * @return {object} - An object containing the total reward amount for the user.
+ * 
+ * @note This function requires a valid database connection to be established before calling.
+ */
+async function checkRewardAmount(userAddress) {
+    try {
+        if (!userDbConnection) {
+            throw new Error('Database connection not established');
+        }
+
+        const doc = await userDbConnection.collection('promotionCode').findOne({ userAddress });
+        if (!doc || !doc.totalRewardAmount) {
+            console.log('No total reward amount found for this parent user.');
+            return ({ totalRewardAmount: 0 });
+        }
+
+        return ({ totalRewardAmount: doc.totalRewardAmount });
+    } catch (error) {
+        console.error('Failed to check reward amount for user:', error);
+        error.code = 10037;
+        throw error; // Re-throw the error to be handled by the caller
+    }
+}
+
+/**
  * @brief Logs the subscription information for a user.
  * 
  * @param {string} userEmail - The email of the user.
@@ -1229,9 +1258,10 @@ module.exports = {
     checkIfFinished,
     generatePromotionCode,
     usePromotionCode,
-    rewardParentUser,
+    findParentUserAddress,
     logSubscriptionInfo,
     checkIfPurchased,
     appendRewardParentUser,
     checkRewardParentUser,
+    checkRewardAmount,
 };

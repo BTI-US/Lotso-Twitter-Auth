@@ -688,7 +688,7 @@ app.get('/generate-promotion-code', async (req, res) => {
         const userId = await utils.getUserTwitterId(req.session.accessToken, req.session.accessTokenSecret);
 
         // Note: `follow` is not included in the requiredTypes array
-        let requiredTypes = [];
+        const requiredTypes = [];
         let sameType = null;
 
         if (checkRetweetEnabled || checkRetweet2Enabled) {
@@ -741,7 +741,7 @@ app.get('/send-airdrop-parent', async (req, res) => {
     }
 
     try {
-        const { parentAddress } = await utils.rewardParentUser(address);
+        const { parentAddress } = await utils.findParentUserAddress(address);
         const { appendAmount, reward, maxReward } = await utils.checkRewardParentUser(parentAddress, airdropPerPerson, {
             airdropRewardMaxForBuyer, airdropRewardMaxForNotBuyer,
         });
@@ -824,6 +824,27 @@ app.get('/check-purchase', async (req, res) => {
     }
 });
 app.options('/check-purchase', cors(corsOptions)); // Enable preflight request for this endpoint
+
+app.get('/check-reward-amount', async (req, res) => {
+    const { address } = req.query;
+    if (!address) {
+        console.log("Address not found");
+        const response = createResponse(10004, 'Address is required');
+        return res.status(400).json(response);
+    }
+
+    try {
+        // Check the reward amount for the user
+        const result = await utils.checkRewardAmount(address);
+        const response = createResponse(0, 'Success', result);
+        res.json(response);
+    } catch (error) {
+        console.error("Failed to check reward amount:", error);
+        const response = createResponse(error.code || 10000, error.message);
+        res.status(500).json(response);
+    }
+});
+app.options('/check-reward-amount', cors(corsOptions)); // Enable preflight request for this endpoint
 
 app.get('/subscription-info', async (req, res) => {
     console.log("Endpoint hit: /subscription-info");

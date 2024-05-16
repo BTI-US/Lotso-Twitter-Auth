@@ -151,10 +151,12 @@ sequenceDiagram
     S-->>B: Return the available airdrop amount <br>Body: JSON object
     B-->>F: Return the available airdrop amount <br> 300,000 $Lotso tokens if available
     F-->>U: Rejected if not available
+    alt This feature has beed removed
     F->>B: Check if user has claimed the airdrop <br>GET Endpoint: /check-airdrop <br>Parameter: address
     note over B: Check if user has logged in the database
     B-->>F: Return the airdrop logging status <br>Body: JSON object
     F-->>U: Display result <br>(Rejected if already claimed)
+    end
 
     U->>F: Step 2 <br>Clicks 'Claim Airdrop'
     F->>BC: Read the contract to check the available airdrop amount
@@ -243,10 +245,12 @@ sequenceDiagram
     S-->>B: Return the available airdrop amount <br>Body: JSON object
     B-->>F: Return the available airdrop amount <br> 100,000 $Lotso tokens if available
     F-->>U: Rejected if not available
+    alt This feature has beed removed
     F->>B: Check if user has claimed the airdrop <br>GET Endpoint: /check-airdrop <br>Parameter: address
     note over B: Check if user has logged in the database
     B-->>F: Return the airdrop logging status <br>Body: JSON object
     F-->>U: Display result <br>(Rejected if already claimed)
+    end
 
     U->>F: Step 2 <br>Clicks 'Claim Airdrop'
     F->>BC: Read the contract to check the available airdrop amount
@@ -471,6 +475,7 @@ The application has the following endpoints:
 - `/check-airdrop-amount`: Checks the amount of airdrop available for the user.
 - `/generate-promotion-code`: Generates a promotion code for the user.
 - `/send-airdrop-parent`: Sends an airdrop to the parent user for rewards.
+- `/check-reward-amount`: Checks the reward amount for the parent user.
 - `/subscription-info`: Fetches the subscription information for the user.
 - `/v1/info/recipient_info`: Fetches the number of recipients who have claimed the airdrop and the total amount of airdrop claimed.
 
