@@ -20,6 +20,9 @@ const airdropRewardMaxForNotBuyer = process.env.AIRDROP_REWARD_MAX_FOR_NOT_BUYER
 const airdropPerPerson = process.env.AIRDROP_PER_PERSON || '50000';
 const airdropPerStep = process.env.AIRDROP_PER_STEP || '50000';
 const lotsoPurchasedUserAmount = process.env.LOTSO_PURCHASED_USER_AMOUNT || '300000';
+const checkRetweetEnabled = process.env.CHECK_RETWEET_ENABLED === 'true';
+const checkRetweet2Enabled = process.env.CHECK_RETWEET_2_ENABLED === 'true';
+const checkLikeEnabled = process.env.CHECK_LIKE_ENABLED === 'true';
 
 const app = express();
 app.set('trust proxy', 1); // Trust the first proxy
@@ -684,10 +687,19 @@ app.get('/generate-promotion-code', async (req, res) => {
     try {
         const userId = await utils.getUserTwitterId(req.session.accessToken, req.session.accessTokenSecret);
 
-        // TODO: Note: `follow` is not included in the requiredTypes array
-        const requiredTypes = ["like"];
+        // Note: `follow` is not included in the requiredTypes array
+        let requiredTypes = [];
+        let sameType = null;
 
-        const result = await utils.checkIfFinished(userId, requiredTypes);
+        if (checkRetweetEnabled || checkRetweet2Enabled) {
+            requiredTypes.push("retweet");
+        }
+        if (checkLikeEnabled) {
+            requiredTypes.push("like");
+        }
+        sameType = (checkRetweetEnabled && checkRetweet2Enabled) ? "retweet" : "";
+
+        const result = await utils.checkIfFinished(userId, requiredTypes, sameType);
         if (result.isFinished) {
             console.log("User has completed all required steps and is eligible for obtaining the promotion code.");
             const promotionCode = await utils.generatePromotionCode(address);

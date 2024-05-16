@@ -851,6 +851,7 @@ async function checkIfBookmarked(accessToken, accessTokenSecret, userId, targetT
  * 
  * @param {string} userId - The ID of the user to check.
  * @param {string[]} requiredTypes - An array of interaction types to check for.
+ * @param {string} sameType - The interaction type to check for the same tweet.
  * 
  * @return {Promise<{ isFinished: boolean }>} A promise that resolves to an object containing the result of the check.
  * 
@@ -859,10 +860,10 @@ async function checkIfBookmarked(accessToken, accessTokenSecret, userId, targetT
  * If the user has completed all interactions, the promise resolves to { isFinished: true }, otherwise it resolves to { isFinished: false }.
  * If there is an error during the process, the promise is rejected with the error.
  */
-async function checkIfFinished(userId, requiredTypes) {
+async function checkIfFinished(userId, requiredTypes, sameType = null) {
     try {
         // Check if the user has completed all required check procedures
-        const hasAllInteractions = await checkUserSteps(userId, requiredTypes);
+        const hasAllInteractions = await checkUserSteps(userId, requiredTypes, sameType);
         
         if (hasAllInteractions) {
             console.log("User has all required interaction types.");

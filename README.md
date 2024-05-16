@@ -2,6 +2,7 @@
 
 [![Docker CI](https://github.com/BTI-US/Lotso-Twitter-Auth/actions/workflows/docker-ci.yml/badge.svg)](https://github.com/BTI-US/Lotso-Twitter-Auth/actions/workflows/docker-ci.yml)
 [![CodeQL](https://github.com/BTI-US/Lotso-Twitter-Auth/actions/workflows/codeql.yml/badge.svg)](https://github.com/BTI-US/Lotso-Twitter-Auth/actions/workflows/codeql.yml)
+[![reviewdog](https://github.com/BTI-US/Lotso-Twitter-Auth/actions/workflows/reviewdog.yml/badge.svg)](https://github.com/BTI-US/Lotso-Twitter-Auth/actions/workflows/reviewdog.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 - Last Modified: 2024-04-26
@@ -393,6 +394,9 @@ LOTSO_PURCHASED_USER_AMOUNT=300000 \
 WEBPAGE_ADDRESS=https://lotso.org \
 AUTH_WEB_ADDRESS=https://api.btiplatform.com \
 DOCKER_NETWORK=lotso-main-network \
+CHECK_RETWEET_ENABLED=true \
+CHECK_RETWEET_2_ENABLED=true \
+CHECK_LIKE_ENABLED=true \
 docker-compose up -p main -d
 ```
 
@@ -421,6 +425,9 @@ LOTSO_PURCHASED_USER_AMOUNT=300000 \
 WEBPAGE_ADDRESS=https://lotso.org \
 AUTH_WEB_ADDRESS=https://api.btiplatform.com \
 DOCKER_NETWORK=lotso-main-network \
+CHECK_RETWEET_ENABLED=true \
+CHECK_RETWEET_2_ENABLED=true \
+CHECK_LIKE_ENABLED=true \
 docker-compose -p main down
 ```
 
