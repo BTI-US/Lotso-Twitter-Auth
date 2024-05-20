@@ -30,6 +30,8 @@ if (!TWITTER_CONSUMER_KEY || !TWITTER_CONSUMER_SECRET) {
  * @swagger
  * /start-auth:
  *   get:
+ *     tags:
+ *       - Authentication
  *     summary: Start Twitter OAuth authentication
  *     description: This endpoint initiates the OAuth process with Twitter and redirects the user to the Twitter authentication page.
  *     parameters:
@@ -80,6 +82,8 @@ app.options('/start-auth', cors(corsOptions)); // Enable preflight request for t
  * @swagger
  * /twitter-callback:
  *   get:
+ *     tags:
+ *       - Authentication
  *     summary: Twitter OAuth callback endpoint
  *     description: This endpoint handles the callback from Twitter after the user has authenticated. It retrieves the OAuth access token and stores it in the session.
  *     parameters:
@@ -145,6 +149,8 @@ app.options('/twitter-callback', cors(corsOptions)); // Enable preflight request
  * @swagger
  * /check-auth-status:
  *   get:
+ *     tags:
+ *       - Authentication
  *     summary: Check authentication status
  *     description: This endpoint checks if the user is authenticated by looking for the access token and token secret in the session.
  *     responses:
@@ -215,6 +221,8 @@ app.options('/check-auth-status', cors(corsOptions)); // Enable preflight reques
  * @swagger
  * /check-retweet:
  *   get:
+ *     tags:
+ *       - Action Checks
  *     summary: Check if a tweet has been retweeted by the authenticated user
  *     description: This endpoint checks if the authenticated user has retweeted a specific tweet.
  *     parameters:
@@ -312,6 +320,8 @@ app.options('/check-retweet', cors(corsOptions)); // Enable preflight request fo
  * @swagger
  * /check-follow:
  *   get:
+ *     tags:
+ *       - Action Checks
  *     summary: Check if a user is followed by the authenticated user
  *     description: This endpoint checks if the authenticated user is following a specific user.
  *     parameters:
@@ -414,6 +424,8 @@ app.options('/check-follow', cors(corsOptions)); // Enable preflight request for
  * @swagger
  * /check-like:
  *   get:
+ *     tags:
+ *       - Action Checks
  *     summary: Check if a tweet has been liked by the authenticated user
  *     description: This endpoint checks if the authenticated user has liked a specific tweet.
  *     parameters:
@@ -513,6 +525,8 @@ app.options('/check-like', cors(corsOptions)); // Enable preflight request for t
  * @swagger
  * /check-bookmark:
  *   get:
+ *     tags:
+ *       - Action Checks
  *     summary: Check if a tweet has been bookmarked by the authenticated user
  *     description: This endpoint checks if the authenticated user has bookmarked a specific tweet.
  *     parameters:
@@ -610,6 +624,8 @@ app.options('/check-bookmark', cors(corsOptions)); // Enable preflight request f
  * @swagger
  * /retweet:
  *   get:
+ *     tags:
+ *       - Actions
  *     summary: Retweet a specific tweet
  *     description: This endpoint allows the authenticated user to retweet a specific tweet.
  *     parameters:
@@ -718,6 +734,8 @@ app.options('/retweet', cors(corsOptions)); // Enable preflight request for this
  * @swagger
  * /like:
  *   get:
+ *     tags:
+ *       - Actions
  *     summary: Like a specific tweet
  *     description: This endpoint allows the authenticated user to like a specific tweet.
  *     parameters:
@@ -826,6 +844,8 @@ app.options('/like', cors(corsOptions)); // Enable preflight request for this en
  * @swagger
  * /bookmark:
  *   get:
+ *     tags:
+ *       - Actions
  *     summary: Bookmark a specific tweet
  *     description: This endpoint allows the authenticated user to bookmark a specific tweet.
  *     parameters:
@@ -933,6 +953,8 @@ app.options('/bookmark', cors(corsOptions)); // Enable preflight request for thi
  * @swagger
  * /follow-us:
  *   get:
+ *     tags:
+ *       - Actions
  *     summary: Follow a specific user
  *     description: This endpoint allows the authenticated user to follow a specific user.
  *     parameters:
@@ -1035,6 +1057,8 @@ app.options('/follow-us', cors(corsOptions)); // Enable preflight request for th
  * @swagger
  * /check-airdrop:
  *   get:
+ *     tags:
+ *       - Airdrop Log
  *     summary: Check airdrop status for a specific address
  *     description: This endpoint allows the authenticated user to check the airdrop status for a specific address.
  *     parameters:
@@ -1131,6 +1155,8 @@ app.options('/check-airdrop', cors(corsOptions)); // Enable preflight request fo
  * @swagger
  * /log-airdrop:
  *   get:
+ *     tags:
+ *       - Airdrop Log
  *     summary: Log airdrop for a specific address
  *     description: This endpoint allows the authenticated user to log the airdrop for a specific address.
  *     parameters:
@@ -1226,6 +1252,8 @@ app.options('/log-airdrop', cors(corsOptions)); // Enable preflight request for 
  * @swagger
  * /check-airdrop-amount:
  *   get:
+ *     tags:
+ *       - Airdrop Log
  *     summary: Check airdrop amount for a specific address
  *     description: This endpoint allows the authenticated user to check the airdrop amount for a specific address.
  *                  This endpoint will only be trigger when the user clicks the "Check Airdrop Amount" button
@@ -1391,6 +1419,8 @@ app.options('/check-airdrop-amount', cors(corsOptions)); // Enable preflight req
  * @swagger
  * /generate-promotion-code:
  *   get:
+ *     tags:
+ *       - Airdrop Log
  *     summary: Generate a promotion code for a specific address
  *     description: This endpoint allows the authenticated user to generate a promotion code for a specific address.
  *                  This endpoint will only be trigger when the user clicks the "Generate Promotion Code" button
@@ -1512,6 +1542,8 @@ app.options('/generate-promotion-code', cors(corsOptions)); // Enable preflight 
  * @swagger
  * /send-airdrop-parent:
  *   get:
+ *     tags:
+ *       - Airdrop Log
  *     summary: Send airdrop to the parent of a specific address
  *     description: This endpoint allows the authenticated user to send an airdrop to the parent of a specific address.
  *     parameters:
@@ -1648,6 +1680,8 @@ app.options('/send-airdrop-parent', cors(corsOptions)); // Enable preflight requ
  * @swagger
  * /check-purchase:
  *   get:
+ *     tags:
+ *       - Airdrop Log
  *     summary: Check if a specific address has purchased the first generation of $Lotso tokens
  *     description: This endpoint allows the authenticated user to check if a specific address has purchased the first generation of $Lotso tokens.
  *     parameters:
@@ -1744,6 +1778,8 @@ app.options('/check-purchase', cors(corsOptions)); // Enable preflight request f
  * @swagger
  * /check-reward-amount:
  *   get:
+ *     tags:
+ *       - Airdrop Log
  *     summary: Check reward amount for a specific address
  *     description: This endpoint allows the authenticated user to check the reward amount for a specific address.
  *     parameters:
@@ -1818,6 +1854,8 @@ app.options('/check-reward-amount', cors(corsOptions)); // Enable preflight requ
  * @swagger
  * /subscription-info:
  *   get:
+ *     tags:
+ *       - Email Subscription
  *     summary: Log subscription information for a user
  *     description: This endpoint allows the authenticated user to log subscription information for a user.
  *     parameters:
@@ -1903,6 +1941,8 @@ app.options('/subscription-info', cors(corsOptions)); // Enable preflight reques
  * @swagger
  * /v1/info/recipient_info:
  *   get:
+ *     tags:
+ *       - Airdrop Claim
  *     summary: Get recipient information
  *     description: This endpoint retrieves recipient information from a specified address.
  *     responses:
