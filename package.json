@@ -33,7 +33,9 @@
     "globals": "^15.2.0",
     "mongodb": "^6.6.0",
     "oauth": "^0.10.0",
-    "redis": "^4.6.13"
+    "redis": "^4.6.13",
+    "swagger-jsdoc": "^6.2.8",
+    "swagger-ui-express": "^5.0.0"
   },
   "devDependencies": {
     "cluster": "^0.7.7",

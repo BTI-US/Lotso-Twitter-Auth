@@ -35,6 +35,7 @@ if (cluster.isMaster) {
     // Worker process - start the server
     server.listen(SERVER_PORT, () => {
         console.log(`Server is running on port ${SERVER_PORT}`);
+        console.log('API docs available at /api-docs');
 
         // Send a GET request when the server starts
         // Endpoint: /recipient_info

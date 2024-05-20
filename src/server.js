@@ -1,14 +1,10 @@
-const express = require('express');
 const https = require('https');
 const fs = require('fs');
 const { OAuth } = require('oauth');
 const cors = require('cors');
-const session = require('express-session');
-const crypto = require('crypto');
-const redis = require('redis');
-const RedisStore = require('connect-redis').default;
 const utils = require('./function');
 const { createResponse } = require('./response');
+const { app, corsOptions } = require('./appConfig');
 
 const airdropCountAddress = `http://${process.env.AIRDROP_SERVER_HOST}:${process.env.AIRDROP_SERVER_PORT}/v1/info/set_airdrop`;
 const airdropRewardAddress = `http://${process.env.AIRDROP_SERVER_HOST}:${process.env.AIRDROP_SERVER_PORT}/v1/info/append_airdrop`;
@@ -24,100 +20,31 @@ const checkRetweetEnabled = process.env.CHECK_RETWEET_ENABLED === 'true';
 const checkRetweet2Enabled = process.env.CHECK_RETWEET_2_ENABLED === 'true';
 const checkLikeEnabled = process.env.CHECK_LIKE_ENABLED === 'true';
 
-const app = express();
-app.set('trust proxy', 1); // Trust the first proxy
-
-const redisClient = redis.createClient({
-    socket: {
-        host: process.env.REDIS_HOST || 'redis',
-        port: process.env.REDIS_PORT || '6379',
-    },
-});
-redisClient.connect();
-const sessionStore = new RedisStore({ client: redisClient });
-
-redisClient.on('error', (err) => {
-    console.log('Could not establish a connection with Redis. ', err);
-});
-
-redisClient.on('connect', (err) => {
-    console.log('Connected to Redis successfully');
-});
-
-redisClient.on('end', () => {
-    console.log('Redis client has disconnected from the server.');
-});
-
-redisClient.on('reconnecting', () => {
-    console.log('Redis client is trying to reconnect to the server.');
-});
-
-redisClient.on('ready', () => {
-    console.log('Redis client is ready to accept requests.');
-});
-
-redisClient.on('warning', (warning) => {
-    console.log('Redis client received a warning:', warning);
-});
-
-redisClient.on('monitor', (time, args, source, database) => {
-    console.log('Redis client is monitoring:', time, args, source, database);
-});
-
-redisClient.on('message', (channel, message) => {
-    console.log('Redis client received a message:', channel, message);
-});
-
-if (!process.env.DOCKER_ENV) {
-    require('dotenv').config();
-}
-
-// Only allow your specific frontend domain and enable credentials
-const corsOptions = {
-    origin(origin, callback) {
-        callback(null, true);
-    },
-    credentials: true, // Enable credentials
-    allowedHeaders: '*', // Accept any headers
-    exposedHeaders: '*', // Expose any headers
-};
-
-// Function to generate a secret key
-function generateSecretKey(length = 32) {
-    return crypto.randomBytes(length).toString('hex');
-}
-
-app.use(cors(corsOptions));
-app.use(session({
-    store: sessionStore,
-    secret: generateSecretKey(), // Generate a random secret key for the session
-    resave: false,
-    saveUninitialized: true,
-    cookie: {
-        path: '/',
-        secure: true, // Set secure cookies based on the connection protocol
-        httpOnly: true, // Protect against client-side scripting accessing the cookie
-        maxAge: 3600000, // Set cookie expiration, etc.
-        sameSite: 'None',
-    },
-}));
-
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-
-// TEST: Middleware to log session data for debugging
-app.use((req, res, next) => {
-    console.log("Session middleware check: Session ID is", req.sessionID);
-    console.log("Session data:", req.session);
-    next();
-});
-
 const { TWITTER_CONSUMER_KEY, TWITTER_CONSUMER_SECRET } = process.env;
 if (!TWITTER_CONSUMER_KEY || !TWITTER_CONSUMER_SECRET) {
     console.error('Twitter consumer key and secret are required. Exiting...');
     process.exit(1);
 }
 
+/**
+ * @swagger
+ * /start-auth:
+ *   get:
+ *     summary: Start Twitter OAuth authentication
+ *     description: This endpoint initiates the OAuth process with Twitter and redirects the user to the Twitter authentication page.
+ *     parameters:
+ *       - in: query
+ *         name: callback
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: Callback URL to redirect to after successful authentication
+ *     responses:
+ *       200:
+ *         description: Redirects the user to the Twitter authentication page
+ *       500:
+ *         description: Returns an error if the OAuth request token retrieval fails
+ */
 app.get('/start-auth', (req, res) => {
     const oauth = new OAuth(
         'https://api.twitter.com/oauth/request_token',
@@ -149,6 +76,31 @@ app.get('/start-auth', (req, res) => {
 });
 app.options('/start-auth', cors(corsOptions)); // Enable preflight request for this endpoint
 
+/**
+ * @swagger
+ * /twitter-callback:
+ *   get:
+ *     summary: Twitter OAuth callback endpoint
+ *     description: This endpoint handles the callback from Twitter after the user has authenticated. It retrieves the OAuth access token and stores it in the session.
+ *     parameters:
+ *       - in: query
+ *         name: oauth_token
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: The OAuth token provided by Twitter
+ *       - in: query
+ *         name: oauth_verifier
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: The OAuth verifier provided by Twitter
+ *     responses:
+ *       302:
+ *         description: Redirects to the frontend with a session identifier after successful authentication
+ *       500:
+ *         description: Returns an error if getting the OAuth access token fails
+ */
 app.get('/twitter-callback', (req, res) => {
     const oauth = new OAuth(
         'https://api.twitter.com/oauth/request_token',
@@ -189,6 +141,57 @@ app.get('/twitter-callback', (req, res) => {
 });
 app.options('/twitter-callback', cors(corsOptions)); // Enable preflight request for this endpoint
 
+/**
+ * @swagger
+ * /check-auth-status:
+ *   get:
+ *     summary: Check authentication status
+ *     description: This endpoint checks if the user is authenticated by looking for the access token and token secret in the session.
+ *     responses:
+ *       200:
+ *         description: The user is authenticated
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     isAuthenticated:
+ *                       type: boolean
+ *       400:
+ *         description: No session found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                 message:
+ *                   type: string
+ *       401:
+ *         description: The user is not authenticated
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     isAuthenticated:
+ *                       type: boolean
+ */
 app.get('/check-auth-status', (req, res) => {
     // Assume the session ID is automatically managed through the cookie
     if (!req.session) {
@@ -208,6 +211,70 @@ app.get('/check-auth-status', (req, res) => {
 });
 app.options('/check-auth-status', cors(corsOptions)); // Enable preflight request for this endpoint
 
+/**
+ * @swagger
+ * /check-retweet:
+ *   get:
+ *     summary: Check if a tweet has been retweeted by the authenticated user
+ *     description: This endpoint checks if the authenticated user has retweeted a specific tweet.
+ *     parameters:
+ *       - in: query
+ *         name: tweetId
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: The ID of the tweet to check
+ *     responses:
+ *       200:
+ *         description: Returns the retweet status
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     retweeted:
+ *                       type: boolean
+ *       400:
+ *         description: No session found or tweetId not provided
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                 message:
+ *                   type: string
+ *       401:
+ *         description: The user is not authenticated
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                 message:
+ *                   type: string
+ *       500:
+ *         description: Returns an error if there's an issue with the Twitter API
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                 message:
+ *                   type: string
+ */
 app.get('/check-retweet', async (req, res) => {
     if (!req.session) {
         const response = createResponse(10003, 'No session found');
@@ -241,6 +308,70 @@ app.get('/check-retweet', async (req, res) => {
 });
 app.options('/check-retweet', cors(corsOptions)); // Enable preflight request for this endpoint
 
+/**
+ * @swagger
+ * /check-follow:
+ *   get:
+ *     summary: Check if a user is followed by the authenticated user
+ *     description: This endpoint checks if the authenticated user is following a specific user.
+ *     parameters:
+ *       - in: query
+ *         name: userName
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: The username of the user to check
+ *     responses:
+ *       200:
+ *         description: Returns the follow status
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     following:
+ *                       type: boolean
+ *       400:
+ *         description: No session found or userName not provided
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                 message:
+ *                   type: string
+ *       401:
+ *         description: The user is not authenticated
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                 message:
+ *                   type: string
+ *       500:
+ *         description: Returns an error if there's an issue with the Twitter API
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                 message:
+ *                   type: string
+ */
 app.get('/check-follow', async (req, res) => {
     if (!req.session) {
         const response = createResponse(10003, 'No session found');
@@ -279,6 +410,70 @@ app.get('/check-follow', async (req, res) => {
 });
 app.options('/check-follow', cors(corsOptions)); // Enable preflight request for this endpoint
 
+/**
+ * @swagger
+ * /check-like:
+ *   get:
+ *     summary: Check if a tweet has been liked by the authenticated user
+ *     description: This endpoint checks if the authenticated user has liked a specific tweet.
+ *     parameters:
+ *       - in: query
+ *         name: tweetId
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: The ID of the tweet to check
+ *     responses:
+ *       200:
+ *         description: Returns the like status
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     liked:
+ *                       type: boolean
+ *       400:
+ *         description: No session found or tweetId not provided
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                 message:
+ *                   type: string
+ *       401:
+ *         description: The user is not authenticated
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                 message:
+ *                   type: string
+ *       500:
+ *         description: Returns an error if there's an issue with the Twitter API
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                 message:
+ *                   type: string
+ */
 app.get('/check-like', async (req, res) => {
     if (!req.session) {
         const response = createResponse(10003, 'No session found');
@@ -314,6 +509,70 @@ app.get('/check-like', async (req, res) => {
 });
 app.options('/check-like', cors(corsOptions)); // Enable preflight request for this endpoint
 
+/**
+ * @swagger
+ * /check-bookmark:
+ *   get:
+ *     summary: Check if a tweet has been bookmarked by the authenticated user
+ *     description: This endpoint checks if the authenticated user has bookmarked a specific tweet.
+ *     parameters:
+ *       - in: query
+ *         name: tweetId
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: The ID of the tweet to check
+ *     responses:
+ *       200:
+ *         description: Returns the bookmark status
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     bookmarked:
+ *                       type: boolean
+ *       400:
+ *         description: No session found or tweetId not provided
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                 message:
+ *                   type: string
+ *       401:
+ *         description: The user is not authenticated
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                 message:
+ *                   type: string
+ *       500:
+ *         description: Returns an error if there's an issue with the Twitter API
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                 message:
+ *                   type: string
+ */
 app.get('/check-bookmark', async (req, res) => {
     if (!req.session) {
         const response = createResponse(10003, 'No session found');
@@ -347,6 +606,70 @@ app.get('/check-bookmark', async (req, res) => {
 });
 app.options('/check-bookmark', cors(corsOptions)); // Enable preflight request for this endpoint
 
+/**
+ * @swagger
+ * /retweet:
+ *   get:
+ *     summary: Retweet a specific tweet
+ *     description: This endpoint allows the authenticated user to retweet a specific tweet.
+ *     parameters:
+ *       - in: query
+ *         name: tweetId
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: The ID of the tweet to retweet
+ *     responses:
+ *       200:
+ *         description: Returns the retweet status
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     retweeted:
+ *                       type: boolean
+ *       400:
+ *         description: No session found or tweetId not provided
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                 message:
+ *                   type: string
+ *       401:
+ *         description: The user is not authenticated
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                 message:
+ *                   type: string
+ *       500:
+ *         description: Returns an error if there's an issue with the Twitter API
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                 message:
+ *                   type: string
+ */
 app.get('/retweet', async (req, res) => {
     if (!req.session) {
         const response = createResponse(10003, 'No session found');
@@ -391,6 +714,70 @@ app.get('/retweet', async (req, res) => {
 });
 app.options('/retweet', cors(corsOptions)); // Enable preflight request for this endpoint
 
+/**
+ * @swagger
+ * /like:
+ *   get:
+ *     summary: Like a specific tweet
+ *     description: This endpoint allows the authenticated user to like a specific tweet.
+ *     parameters:
+ *       - in: query
+ *         name: tweetId
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: The ID of the tweet to like
+ *     responses:
+ *       200:
+ *         description: Returns the like status
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     liked:
+ *                       type: boolean
+ *       400:
+ *         description: No session found or tweetId not provided
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                 message:
+ *                   type: string
+ *       401:
+ *         description: The user is not authenticated
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                 message:
+ *                   type: string
+ *       500:
+ *         description: Returns an error if there's an issue with the Twitter API
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                 message:
+ *                   type: string
+ */
 app.get('/like', async (req, res) => {
     if (!req.session) {
         const response = createResponse(10003, 'No session found');
@@ -435,6 +822,70 @@ app.get('/like', async (req, res) => {
 });
 app.options('/like', cors(corsOptions)); // Enable preflight request for this endpoint
 
+/**
+ * @swagger
+ * /bookmark:
+ *   get:
+ *     summary: Bookmark a specific tweet
+ *     description: This endpoint allows the authenticated user to bookmark a specific tweet.
+ *     parameters:
+ *       - in: query
+ *         name: tweetId
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: The ID of the tweet to bookmark
+ *     responses:
+ *       200:
+ *         description: Returns the bookmark status
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     bookmarked:
+ *                       type: boolean
+ *       400:
+ *         description: No session found or tweetId not provided
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                 message:
+ *                   type: string
+ *       401:
+ *         description: The user is not authenticated
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                 message:
+ *                   type: string
+ *       500:
+ *         description: Returns an error if there's an issue with the Twitter API
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                 message:
+ *                   type: string
+ */
 app.get('/bookmark', async (req, res) => {
     if (!req.session) {
         const response = createResponse(10003, 'No session found');
@@ -478,6 +929,70 @@ app.get('/bookmark', async (req, res) => {
 });
 app.options('/bookmark', cors(corsOptions)); // Enable preflight request for this endpoint
 
+/**
+ * @swagger
+ * /follow-us:
+ *   get:
+ *     summary: Follow a specific user
+ *     description: This endpoint allows the authenticated user to follow a specific user.
+ *     parameters:
+ *       - in: query
+ *         name: userName
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: The username of the user to follow
+ *     responses:
+ *       200:
+ *         description: Returns the follow status
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     followed:
+ *                       type: boolean
+ *       400:
+ *         description: No session found or userName not provided
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                 message:
+ *                   type: string
+ *       401:
+ *         description: The user is not authenticated
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                 message:
+ *                   type: string
+ *       500:
+ *         description: Returns an error if there's an issue with the Twitter API
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                 message:
+ *                   type: string
+ */
 app.get('/follow-us', async (req, res) => {
     if (!req.session) {
         const response = createResponse(10003, 'No session found');
@@ -516,6 +1031,70 @@ app.get('/follow-us', async (req, res) => {
 });
 app.options('/follow-us', cors(corsOptions)); // Enable preflight request for this endpoint
 
+/**
+ * @swagger
+ * /check-airdrop:
+ *   get:
+ *     summary: Check airdrop status for a specific address
+ *     description: This endpoint allows the authenticated user to check the airdrop status for a specific address.
+ *     parameters:
+ *       - in: query
+ *         name: address
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: The address to check the airdrop status for
+ *     responses:
+ *       200:
+ *         description: Returns the airdrop status
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     claimed:
+ *                       type: boolean
+ *       400:
+ *         description: No session found or address not provided
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                 message:
+ *                   type: string
+ *       401:
+ *         description: The user is not authenticated
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                 message:
+ *                   type: string
+ *       500:
+ *         description: Returns an error if there's an issue with the Twitter API
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                 message:
+ *                   type: string
+ */
 app.get('/check-airdrop', async (req, res) => {
     if (!req.session) {
         const response = createResponse(10003, 'No session found');
@@ -548,6 +1127,70 @@ app.get('/check-airdrop', async (req, res) => {
 });
 app.options('/check-airdrop', cors(corsOptions)); // Enable preflight request for this endpoint
 
+/**
+ * @swagger
+ * /log-airdrop:
+ *   get:
+ *     summary: Log airdrop for a specific address
+ *     description: This endpoint allows the authenticated user to log the airdrop for a specific address.
+ *     parameters:
+ *       - in: query
+ *         name: address
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: The address to log the airdrop for
+ *     responses:
+ *       200:
+ *         description: Returns the airdrop log status
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     logged:
+ *                       type: boolean
+ *       400:
+ *         description: No session found or address not provided
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                 message:
+ *                   type: string
+ *       401:
+ *         description: The user is not authenticated
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                 message:
+ *                   type: string
+ *       500:
+ *         description: Returns an error if there's an issue with the Twitter API
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                 message:
+ *                   type: string
+ */
 app.get('/log-airdrop', async (req, res) => {
     if (!req.session) {
         const response = createResponse(10003, 'No session found');
@@ -579,7 +1222,87 @@ app.get('/log-airdrop', async (req, res) => {
 });
 app.options('/log-airdrop', cors(corsOptions)); // Enable preflight request for this endpoint
 
-// This endpoint will only be trigger when the user clicks the "Check Airdrop Amount" button
+/**
+ * @swagger
+ * /check-airdrop-amount:
+ *   get:
+ *     summary: Check airdrop amount for a specific address
+ *     description: This endpoint allows the authenticated user to check the airdrop amount for a specific address.
+ *                  This endpoint will only be trigger when the user clicks the "Check Airdrop Amount" button
+ *     parameters:
+ *       - in: query
+ *         name: address
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: The address to check the airdrop amount for
+ *       - in: query
+ *         name: promotionCode
+ *         schema:
+ *           type: string
+ *         required: false
+ *         description: The promotion code to apply
+ *       - in: query
+ *         name: step
+ *         schema:
+ *           type: integer
+ *         required: true
+ *         description: The step number (0, 1, 2, 3, 4)
+ *     responses:
+ *       200:
+ *         description: Returns the airdrop amount
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     address:
+ *                       type: string
+ *                     purchase:
+ *                       type: boolean
+ *                     amount:
+ *                       type: integer
+ *       400:
+ *         description: No session found, address or step not provided, or invalid promotion code
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                 message:
+ *                   type: string
+ *       401:
+ *         description: The user is not authenticated
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                 message:
+ *                   type: string
+ *       500:
+ *         description: Returns an error if there's an issue with the Twitter API or while processing the promotion code
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                 message:
+ *                   type: string
+ */
 app.get('/check-airdrop-amount', async (req, res) => {
     if (!req.session) {
         const response = createResponse(10003, 'No session found');
@@ -664,7 +1387,71 @@ app.get('/check-airdrop-amount', async (req, res) => {
 });
 app.options('/check-airdrop-amount', cors(corsOptions)); // Enable preflight request for this endpoint
 
-// This endpoint will only be trigger when the user clicks the "Generate Promotion Code" button
+/**
+ * @swagger
+ * /generate-promotion-code:
+ *   get:
+ *     summary: Generate a promotion code for a specific address
+ *     description: This endpoint allows the authenticated user to generate a promotion code for a specific address.
+ *                  This endpoint will only be trigger when the user clicks the "Generate Promotion Code" button
+ *     parameters:
+ *       - in: query
+ *         name: address
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: The address to generate the promotion code for
+ *     responses:
+ *       200:
+ *         description: Returns the generated promotion code
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     promotion_code:
+ *                       type: string
+ *       400:
+ *         description: No session found or address not provided
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                 message:
+ *                   type: string
+ *       401:
+ *         description: The user is not authenticated
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                 message:
+ *                   type: string
+ *       500:
+ *         description: Returns an error if there's an issue with the Twitter API or while generating the promotion code
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                 message:
+ *                   type: string
+ */
 app.get('/generate-promotion-code', async (req, res) => {
     if (!req.session) {
         const response = createResponse(10003, 'No session found');
@@ -721,6 +1508,70 @@ app.get('/generate-promotion-code', async (req, res) => {
 });
 app.options('/generate-promotion-code', cors(corsOptions)); // Enable preflight request for this endpoint
 
+/**
+ * @swagger
+ * /send-airdrop-parent:
+ *   get:
+ *     summary: Send airdrop to the parent of a specific address
+ *     description: This endpoint allows the authenticated user to send an airdrop to the parent of a specific address.
+ *     parameters:
+ *       - in: query
+ *         name: address
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: The address to send the airdrop to its parent
+ *     responses:
+ *       200:
+ *         description: Returns the airdrop status
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     airdrop_count:
+ *                       type: integer
+ *       400:
+ *         description: No session found or address not provided
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                 message:
+ *                   type: string
+ *       401:
+ *         description: The user is not authenticated
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                 message:
+ *                   type: string
+ *       500:
+ *         description: Returns an error if there's an issue with the Twitter API or while processing the airdrop
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                 message:
+ *                   type: string
+ */
 app.get('/send-airdrop-parent', async (req, res) => {
     if (!req.session) {
         const response = createResponse(10003, 'No session found');
@@ -793,6 +1644,70 @@ app.get('/send-airdrop-parent', async (req, res) => {
 });
 app.options('/send-airdrop-parent', cors(corsOptions)); // Enable preflight request for this endpoint
 
+/**
+ * @swagger
+ * /check-purchase:
+ *   get:
+ *     summary: Check if a specific address has purchased the first generation of $Lotso tokens
+ *     description: This endpoint allows the authenticated user to check if a specific address has purchased the first generation of $Lotso tokens.
+ *     parameters:
+ *       - in: query
+ *         name: address
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: The address to check the purchase for
+ *     responses:
+ *       200:
+ *         description: Returns the purchase status
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     purchased:
+ *                       type: boolean
+ *       400:
+ *         description: No session found or address not provided
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                 message:
+ *                   type: string
+ *       401:
+ *         description: The user is not authenticated
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                 message:
+ *                   type: string
+ *       500:
+ *         description: Returns an error if there's an issue with the Twitter API or while checking the purchase
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                 message:
+ *                   type: string
+ */
 app.get('/check-purchase', async (req, res) => {
     if (!req.session) {
         const response = createResponse(10003, 'No session found');
@@ -825,6 +1740,59 @@ app.get('/check-purchase', async (req, res) => {
 });
 app.options('/check-purchase', cors(corsOptions)); // Enable preflight request for this endpoint
 
+/**
+ * @swagger
+ * /check-reward-amount:
+ *   get:
+ *     summary: Check reward amount for a specific address
+ *     description: This endpoint allows the authenticated user to check the reward amount for a specific address.
+ *     parameters:
+ *       - in: query
+ *         name: address
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: The address to check the reward amount for
+ *     responses:
+ *       200:
+ *         description: Returns the reward amount
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     reward_amount:
+ *                       type: integer
+ *       400:
+ *         description: Address not provided
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                 message:
+ *                   type: string
+ *       500:
+ *         description: Returns an error if there's an issue while checking the reward amount
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                 message:
+ *                   type: string
+ */
 app.get('/check-reward-amount', async (req, res) => {
     const { address } = req.query;
     if (!address) {
@@ -846,6 +1814,68 @@ app.get('/check-reward-amount', async (req, res) => {
 });
 app.options('/check-reward-amount', cors(corsOptions)); // Enable preflight request for this endpoint
 
+/**
+ * @swagger
+ * /subscription-info:
+ *   get:
+ *     summary: Log subscription information for a user
+ *     description: This endpoint allows the authenticated user to log subscription information for a user.
+ *     parameters:
+ *       - in: query
+ *         name: email
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: The email of the user
+ *       - in: query
+ *         name: name
+ *         schema:
+ *           type: string
+ *         required: false
+ *         description: The name of the user
+ *       - in: query
+ *         name: info
+ *         schema:
+ *           type: string
+ *         required: false
+ *         description: Additional subscription information
+ *     responses:
+ *       200:
+ *         description: Returns the result of the logging operation
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *       400:
+ *         description: Email not provided
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                 message:
+ *                   type: string
+ *       500:
+ *         description: Returns an error if there's an issue while logging the subscription information
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                 message:
+ *                   type: string
+ */
 app.get('/subscription-info', async (req, res) => {
     console.log("Endpoint hit: /subscription-info");
 
@@ -869,6 +1899,38 @@ app.get('/subscription-info', async (req, res) => {
 });
 app.options('/subscription-info', cors(corsOptions)); // Enable preflight request for this endpoint
 
+/**
+ * @swagger
+ * /v1/info/recipient_info:
+ *   get:
+ *     summary: Get recipient information
+ *     description: This endpoint retrieves recipient information from a specified address.
+ *     responses:
+ *       200:
+ *         description: Returns the recipient information
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *       500:
+ *         description: Returns an error if there's an issue while retrieving the recipient information
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                 message:
+ *                   type: string
+ */
 app.get('/v1/info/recipient_info', async (req, res) => {
     console.log("Endpoint hit: /v1/info/recipient_info");
 
