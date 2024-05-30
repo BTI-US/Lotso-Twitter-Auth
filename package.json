@@ -31,7 +31,7 @@
     "express": "^4.19.2",
     "express-session": "^1.18.0",
     "globals": "^15.2.0",
-    "mongodb": "^6.6.0",
+    "mongodb": "^6.6.2",
     "oauth": "^0.10.0",
     "redis": "^4.6.13",
     "swagger-jsdoc": "^6.2.8",
