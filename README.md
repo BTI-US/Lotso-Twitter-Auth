@@ -399,7 +399,7 @@ WEBPAGE_ADDRESS=https://lotso.org \
 AUTH_WEB_ADDRESS=https://api.btiplatform.com \
 DOCKER_NETWORK=lotso-main-network \
 CHECK_RETWEET_ENABLED=true \
-CHECK_RETWEET_2_ENABLED=true \
+CHECK_TWEET_ENABLED=true \
 CHECK_LIKE_ENABLED=true \
 docker-compose up -p main -d
 ```
@@ -430,7 +430,7 @@ WEBPAGE_ADDRESS=https://lotso.org \
 AUTH_WEB_ADDRESS=https://api.btiplatform.com \
 DOCKER_NETWORK=lotso-main-network \
 CHECK_RETWEET_ENABLED=true \
-CHECK_RETWEET_2_ENABLED=true \
+CHECK_TWEET_ENABLED=true \
 CHECK_LIKE_ENABLED=true \
 docker-compose -p main down
 ```

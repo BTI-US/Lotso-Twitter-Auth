@@ -97,17 +97,16 @@ async function logUserInteraction(userId, targetId, type, url, requestBody, resp
  * 
  * @param {string} userId - The ID of the user to check.
  * @param {string[]} requiredTypes - An array of required interaction types.
- * @param {string} sameType - The type of interaction to check for multiple occurrences.
  * 
  * @return {boolean} - Returns true if the user has completed all required steps and met the criteria, otherwise false.
- * 
+ * @throws {Error} - If there is an error while checking the user interactions.
  * @note This function assumes that the userDbConnection is already established and connected to the user database.
  * The function checks if the user has completed all the required interaction types specified in the 'requiredTypes' array.
  * It also checks if the user has performed multiple occurrences of the same interaction type specified in the 'sameType' parameter.
  * If the user has completed all the required steps and met the criteria, the function returns true.
  * Otherwise, it returns false.
  */
-async function checkUserSteps(userId, requiredTypes, sameType = null) {
+async function checkUserSteps(userId, requiredTypes) {
     try {
         if (!userDbConnection) {
             console.error("User database not connected");
@@ -123,17 +122,6 @@ async function checkUserSteps(userId, requiredTypes, sameType = null) {
         if (sameType === null) {
             return hasAllTypes;
         }
-
-        // Check if there are at least two distinct targetId values for the sameType
-        const retweetBodyCount = await userDbConnection.collection('twitterInteractions').aggregate([
-            { $match: { userId, type: sameType } },
-            { $group: { _id: "$targetId" } },
-            { $count: "distinctRequestBodies" },
-        ]).toArray();
-
-        const hasMultipleRetweets = retweetBodyCount.length > 0 && retweetBodyCount[0].distinctRequestBodies >= 2;
-
-        return hasAllTypes && hasMultipleRetweets;
     } catch (error) {
         console.error("Error checking user interactions:", error);
         throw new Error("Error checking user interactions");
@@ -144,8 +132,8 @@ async function checkUserSteps(userId, requiredTypes, sameType = null) {
  * @brief Queries the user interaction log for the latest log entry of a specific user and interaction type.
  * 
  * @param {string} userId - The ID of the user.
- * @param {string} targetId - The ID of the target user or tweet.
  * @param {string} type - The type of interaction (e.g., 'follow', 'like').
+ * @param {string} targetId - (Optional) The ID of the target user or tweet.
  * 
  * @return {Promise<Object|null>} A promise that resolves with the latest log entry, or null if no entry is found.
  * 
@@ -153,7 +141,7 @@ async function checkUserSteps(userId, requiredTypes, sameType = null) {
  * for a specific user and interaction type. If the user database is not connected, an error will be thrown.
  * The log entry is returned as an object, or null if no entry is found.
  */
-async function checkInteraction(userId, targetId, type) {
+async function checkInteraction(userId, type, targetId = null) {
     try {
         if (!userDbConnection) {
             console.error("User database not connected");
@@ -161,7 +149,12 @@ async function checkInteraction(userId, targetId, type) {
         }
     
         // Define the query to find the latest log entry for this user and type
-        const query = { userId, targetId, type };
+        const query = { userId, type };
+
+        // Include targetId in the query only if it's not null
+        if (targetId !== null) {
+            query.targetId = targetId;
+        }
 
         const options = {
             sort: { createdAt: -1 },  // Sort by creation date in descending order to get the most recent log
@@ -185,19 +178,19 @@ async function checkInteraction(userId, targetId, type) {
                 const twoHoursInMilliseconds = 2 * 60 * 60 * 1000; // 2 hours in milliseconds
 
                 if (timeDifference < twoHoursInMilliseconds) {
-                    return { status: true, message: `User: ${userId} has already interacted to the target: ${targetId} with this action: ${type} within the last two hours.` };
+                    return { status: true, targetId: logEntry.targetId, message: `User: ${userId} has already interacted to the target: ${logEntry.targetId} with this action: ${type} within the last two hours.` };
                 }
 
-                return { status: false, message: `User: ${userId} has not interacted to the target: ${targetId} with this action: ${type} within the last two hours.` };
+                return { status: false, targetId: logEntry.targetId, message: `User: ${userId} has not interacted to the target: ${logEntry.targetId} with this action: ${type} within the last two hours.` };
             }
 
             throw new Error("Interaction failed:", logEntry.error);
         } else {
-            return { status: false, message: `No interaction found for this user and action: ${type}` };
+            return { status: false, targetId: null, message: `No interaction found for this user and action: ${type}` };
         }
     } catch (error) {
         console.error("Error checking interaction:", error);
-        return { status: false, message: "Error checking interaction" };
+        return { status: false, targetId: null, message: "Error checking interaction" };
     }
 }
 
@@ -209,7 +202,7 @@ async function checkInteraction(userId, targetId, type) {
  * 
  * @return {Promise<Object>} A promise that resolves with an object indicating whether the user has claimed the airdrop.
  * The resolved object has a property 'hasClaimed' which is a boolean value indicating whether the user has claimed the airdrop.
- * 
+ * @throws {Error} If there is an error while checking if the user has claimed the airdrop.
  * @note This function checks if a user has already claimed the airdrop by querying the 'airdropClaim' collection in the user database.
  * If the user database is not connected, an error will be thrown.
  * The function executes a query to find a matching entry in the 'airdropClaim' collection based on the provided 'userId' and 'userAddress'.
@@ -256,7 +249,7 @@ async function checkIfClaimedAirdrop(userId, userAddress) {
  * 
  * @return {Promise<Object>} A promise that resolves with an object indicating whether the airdrop claim was successfully logged.
  * The resolved object has a property 'isLogged' which is a boolean value indicating whether the claim was logged.
- * 
+ * @throws {Error} If there is an error while logging the airdrop claim.
  * @note This function logs a user's airdrop claim to the user database. If the user database is not connected, an error will be thrown.
  * The function checks if any address has been logged for the provided userId. If no address has been logged, the userAddress is added to the log entry.
  * The log entry is then inserted into the 'airdropClaim' collection in the user database.
@@ -363,6 +356,7 @@ async function makeAuthenticatedRequest(accessToken, accessTokenSecret, method, 
  * @param {string} accessToken - The OAuth access token.
  * @param {string} accessTokenSecret - The OAuth access token secret.
  * @return {Promise<string>} - A promise that resolves with the string version of the user's ID.
+ * @throws {Error} - If there is an error while fetching or parsing the data.
  * @note This function requires the 'OAuth' library and the 'TWITTER_CONSUMER_KEY' and 'TWITTER_CONSUMER_SECRET' environment variables to be set.
  */
 async function getUserTwitterId(accessToken, accessTokenSecret) {
@@ -393,7 +387,7 @@ async function getUserTwitterId(accessToken, accessTokenSecret) {
  * @param {string} tweetId - The ID of the tweet to retweet.
  * 
  * @return {Promise} A Promise that resolves with the response from the retweet API call.
- * 
+ * @throws {Error} If there is an error while retweeting the tweet.
  * @note This function makes an authenticated request to the Twitter API to retweet a specific tweet.
  * Reference: https://developer.twitter.com/en/docs/twitter-api/tweets/retweets/api-reference/post-users-id-retweets
  * Limitation: 5 requests / 15 mins per user, no tweet cap
@@ -403,7 +397,7 @@ async function retweetTweet(accessToken, accessTokenSecret, userId, tweetId) {
     const body = JSON.stringify({ tweet_id: tweetId });
 
     try {
-        const result = await checkInteraction(userId, tweetId, 'retweet');
+        const result = await checkInteraction(userId, 'retweet', tweetId);
         console.log("Info:", result.message);
         if (result.status) {
             return { statusCode: 200, message: result.message };
@@ -426,6 +420,48 @@ async function retweetTweet(accessToken, accessTokenSecret, userId, tweetId) {
 }
 
 /**
+ * @brief Tweets a message on behalf of a user.
+ *
+ * @param {string} accessToken - The access token for the user.
+ * @param {string} accessTokenSecret - The access token secret for the user.
+ * @param {string} userId - The ID of the user.
+ * @param {string} message - The message to be tweeted.
+ * @returns {Promise<object>} - A promise that resolves to the response from the Twitter API.
+ * @throws {Error} - If there is an error while tweeting the message.
+ * 
+ * @note This function makes an authenticated request to the Twitter API to post a specific tweet.
+ * Reference: https://developer.x.com/en/docs/twitter-api/tweets/manage-tweets/api-reference/post-tweets
+ * Limitation: 5 requests / 15 mins per user, no tweet cap
+ */
+async function tweetMessage(accessToken, accessTokenSecret, userId, message) {
+    const url = `https://api.twitter.com/2/users/${userId}/tweets`;
+    const body = JSON.stringify({ text: message });
+
+    try {
+        const result = await checkInteraction(userId, 'tweet');
+        console.log("Info:", result.message);
+        if (result.status) {
+            return { statusCode: 200, message: result.message };
+        }
+        const response = await makeAuthenticatedRequest(accessToken, accessTokenSecret, 'POST', url, body);
+        if (response.errors) {
+            const errorDetails = response.errors[0];
+            console.error(`Failed to tweet message, Error: ${errorDetails.detail}`);
+            throw new Error(`Failed to tweet message, Error: ${errorDetails.detail}`);
+        }
+        const tweetId = response.data.id;
+        await logUserInteraction(userId, tweetId, 'tweet', url, body, response);
+        await logTwitterInteraction(userId, 'tweet', url, body, response);
+        return response;
+    } catch (error) {
+        await logTwitterInteraction(userId, 'tweet', url, body, null, error);
+        console.error('Failed to tweet message:', error);
+        error.code = 10039;
+        throw error;
+    }
+}
+
+/**
  * @brief Likes a tweet using the provided access tokens.
  * 
  * @param {string} accessToken - The access token for authenticating the request.
@@ -434,7 +470,7 @@ async function retweetTweet(accessToken, accessTokenSecret, userId, tweetId) {
  * @param {string} tweetId - The ID of the tweet to be liked.
  * 
  * @return {Promise} A promise that resolves to the response of the API request.
- * 
+ * @throws {Error} If there is an error while liking the tweet.
  * @note This function makes an authenticated request to the Twitter API to like a tweet.
  * Reference: https://developer.twitter.com/en/docs/twitter-api/tweets/likes/api-reference/post-users-id-likes
  * Limitation: 200 requests / 24 hours per user or 5 requests / 15 mins, no tweet cap
@@ -445,7 +481,7 @@ async function likeTweet(accessToken, accessTokenSecret, userId, tweetId) {
 
     try {
         // First, check if the user has already liked the tweet
-        const result = await checkInteraction(userId, tweetId, 'like');
+        const result = await checkInteraction(userId, 'like', tweetId);
         console.log("Info:", result.message);
         if (result.status) {
             // Return an object wrapped in a Promise to keep consistent promise-based flow
@@ -482,7 +518,7 @@ async function likeTweet(accessToken, accessTokenSecret, userId, tweetId) {
  * @param {string} tweetId - The ID of the tweet to be bookmarked.
  * 
  * @return {Promise} A promise that resolves to the response of the API request.
- * 
+ * @throws {Error} If there is an error while bookmarking the tweet.
  * @note This function makes an authenticated request to the Twitter API to bookmark a tweet.
  * Reference: https://developer.twitter.com/en/docs/twitter-api/tweets/bookmarks/api-reference/get-users-id-bookmarks
  * Limitation: 5 requests / 15 mins per user, no tweet cap
@@ -493,7 +529,7 @@ async function bookmarkTweet(accessToken, accessTokenSecret, userId, tweetId) {
 
     try {
         // First, check if the user has already bookmarked the tweet
-        const result = await checkInteraction(userId, tweetId, 'bookmark');
+        const result = await checkInteraction(userId, 'bookmark', tweetId);
         console.log("Info:", result.message);
         if (result.status) {
             // Return an object wrapped in a Promise to keep consistent promise-based flow
@@ -572,7 +608,7 @@ async function fetchUserId(username, accessToken, accessTokenSecret) {
  * @param {string} targetUserId - The ID of the user to follow.
  * 
  * @return {Promise} A promise that resolves when the user has been followed successfully.
- * 
+ * @throws {Error} If there is an error while following the user.
  * @note This function first obtains the current user's Twitter ID and then makes an authenticated
  * request to follow the specified user using the obtained ID.
  * Reference: https://developer.twitter.com/en/docs/twitter-api/users/follows/api-reference/get-users-id-following
@@ -584,7 +620,7 @@ async function followUser(accessToken, accessTokenSecret, userId, targetUserId) 
 
     try {
         // First, check if the user has already followed the target user
-        const result = await checkInteraction(userId, targetUserId, 'follow');
+        const result = await checkInteraction(userId, 'follow', targetUserId);
         console.log("Info:", result.message);
         if (result.status) {
             // Return an object wrapped in a Promise to keep consistent promise-based flow
@@ -621,7 +657,7 @@ async function followUser(accessToken, accessTokenSecret, userId, targetUserId) 
  * @param {string} targetTweetId - The ID of the tweet to check if retweeted.
  * 
  * @return {Promise<{isRetweeted: boolean}>} - A promise that resolves to an object containing the retweeted status.
- * 
+ * @throws {Error} - If there is an error while checking if the tweet is retweeted.
  * @note This function makes an authenticated request to the Twitter API to fetch the user's timeline tweets
  * and checks if any tweet is a retweet of the specified tweetId.
  * If an error occurs during the process, it will be logged and rethrown to be handled by the caller.
@@ -632,7 +668,7 @@ async function checkIfRetweeted(accessToken, accessTokenSecret, userId, targetTw
     const url = `https://api.twitter.com/2/tweets/${targetTweetId}/retweeted_by`;
     try {
         // First, check if there is a logged interaction indicating that the user has already retweeted the target tweet
-        const result = await checkInteraction(userId, targetTweetId, 'retweet');
+        const result = await checkInteraction(userId, 'retweet', targetTweetId);
         console.log("Info:", result.message);
         if (result.status) {
             // Return an object wrapped in a Promise to keep consistent promise-based flow
@@ -674,6 +710,69 @@ async function checkIfRetweeted(accessToken, accessTokenSecret, userId, targetTw
 }
 
 /**
+ * Checks if a user has tweeted a specific tweet.
+ *
+ * @param {string} accessToken - The access token for making authenticated requests to the Twitter API.
+ * @param {string} accessTokenSecret - The access token secret for making authenticated requests to the Twitter API.
+ * @param {string} userId - The ID of the user to check.
+ * @returns {Promise<{ isTweeted: boolean }>} - A promise that resolves to an object indicating whether the user has tweeted the target tweet.
+ * @throws {Error} - If there is an error while checking if the user has tweeted.
+ * 
+ * @note This function makes an authenticated request to the Twitter API to check if the user has tweeted the target tweet.
+ * Reference: https://developer.x.com/en/docs/twitter-api/tweets/lookup/api-reference/get-tweets
+ * Limitation: 900 requests / 15 mins per user, no tweet cap
+ */
+async function checkIfTweeted(accessToken, accessTokenSecret, userId) {
+    const url = `https://api.twitter.com/2/users/${userId}/tweets`;
+    try {
+        // First, check if there is a logged interaction indicating that the user has already tweeted the target tweet
+        const result = await checkInteraction(userId, 'tweet');
+        console.log("Info:", result.message);
+        if (result.status) {
+            // Return an object wrapped in a Promise to keep consistent promise-based flow
+            return { isTweeted: true };
+        }
+        // If the user has not tweeted according to logs, return false
+        const targetTweetId = result.targetId;
+        if (targetTweetId === null) {
+            return { isTweeted: false };
+        }
+        // Check Twitter API to ensure and log new interactions
+        const response = await makeAuthenticatedRequest(accessToken, accessTokenSecret, 'GET', url);
+        if (!response.errors) {
+            // Log the successful API request
+            await logTwitterInteraction(userId, 'checkTweet', url, null, response);
+            if (response.data && response.data.length > 0) {
+                if (!Array.isArray(response.data) || !response.data.every(item => 'id' in item)) {
+                    console.error("User ID not found in response data.");
+                    return { isTweeted: false };
+                }
+                // Check through the list of tweets to see if targetTweetId is one of them
+                const isTweeted = response.data.some(tweet => tweet.id === targetTweetId);
+                if (isTweeted) {
+                    // Log only if the tweet is tweeted
+                    await logUserInteraction(userId, targetTweetId, 'tweet', url, null, response);
+                }
+                return { isTweeted };
+            }
+            // If the data array is empty, then no tweets were found
+            return { isTweeted: false };
+        }
+
+        const errorDetails = response.errors[0];
+        console.error(`Failed to check if tweeted, Error: ${errorDetails.detail}`);
+        // Throw an error to be caught by the outer catch
+        throw new Error(`Failed to check if tweeted, Error: ${errorDetails.detail}`);
+    } catch (error) {
+        // Log the failed API request or interaction check
+        await logTwitterInteraction(userId, 'checkTweet', url, null, null, error);
+        console.error('Error checking if tweeted:', error);
+        error.code = 10038;
+        throw error;  // Rethrow error to be handled by the caller
+    }
+}
+
+/**
  * @brief Checks if the authenticated user is following another user on Twitter.
  * 
  * @param {string} accessToken - The access token for the authenticated user.
@@ -682,6 +781,7 @@ async function checkIfRetweeted(accessToken, accessTokenSecret, userId, targetTw
  * @param {string} targetUserId - The ID of the user to check if the authenticated user is following.
  * 
  * @return {Promise<{isFollowing: boolean}>} A promise that resolves to an object containing the following status.
+ * @throws {Error} If there is an error while checking if the user is following another user.
  * @note This function makes an authenticated request to the Twitter API to check the relationship between the authenticated user and the target user.
  * If the authenticated user is following the target user, the promise resolves to { isFollowing: true }, otherwise it resolves to { isFollowing: false }.
  * If there is an error during the request, the promise is rejected with the error.
@@ -691,7 +791,7 @@ async function checkIfFollowed(accessToken, accessTokenSecret, userId, targetUse
     const url = `https://api.twitter.com/2/users/${userId}/following`;
     try {
         // First, check if there is a logged interaction indicating that the user is following the target user
-        const result = await checkInteraction(userId, targetUserId, 'follow');
+        const result = await checkInteraction(userId, 'follow', targetUserId);
         console.log("Info:", result.message);
         if (result.status) {
             // Return an object wrapped in a Promise to keep consistent promise-based flow
@@ -741,6 +841,7 @@ async function checkIfFollowed(accessToken, accessTokenSecret, userId, targetUse
  * @param {string} targetTweetId - The ID of the tweet to check if liked.
  * 
  * @return {Promise<{ isLiked: boolean }>} - A promise that resolves to an object containing the result of the check.
+ * @throws {Error} - If there is an error while checking if the tweet is liked.
  * @note This function makes an authenticated request to the Twitter API to fetch the user's liked tweets and checks if any of them match the specified tweetId.
  * Reference: https://developer.twitter.com/en/docs/twitter-api/tweets/likes/api-reference/get-users-id-liked_tweets
  */
@@ -748,7 +849,7 @@ async function checkIfLiked(accessToken, accessTokenSecret, userId, targetTweetI
     const url = `https://api.twitter.com/2/users/${userId}/liked_tweets`;
     try {
         // First, check if there is a logged interaction indicating that the user has already liked the target tweet
-        const result = await checkInteraction(userId, targetTweetId, 'like');
+        const result = await checkInteraction(userId, 'like', targetTweetId);
         console.log("Info:", result.message);
         if (result.status) {
             // Return an object wrapped in a Promise to keep consistent promise-based flow
@@ -797,7 +898,7 @@ async function checkIfLiked(accessToken, accessTokenSecret, userId, targetTweetI
  * @param {string} targetTweetId - The ID of the tweet to check.
  * 
  * @return {Promise<{ isBookmarked: boolean }>} A promise that resolves to an object containing the `isBookmarked` property, indicating whether the tweet is bookmarked or not.
- * 
+ * @throws {Error} If there is an error while checking if the tweet is bookmarked.
  * @note This function makes an authenticated request to the Twitter API to fetch the user's bookmarks and checks if the specified tweet ID is present in the list.
  * Reference: https://developer.twitter.com/en/docs/twitter-api/tweets/bookmarks/api-reference/get-users-id-bookmarks
  * Limitation: 10 requests / 15 mins per user, no tweet cap
@@ -806,7 +907,7 @@ async function checkIfBookmarked(accessToken, accessTokenSecret, userId, targetT
     const url = `https://api.twitter.com/2/users/${userId}/bookmarks`;
     // First, check if there is a logged interaction indicating that the user has already bookmarked the target tweet
     try {
-        const result = await checkInteraction(userId, targetTweetId, 'bookmark');
+        const result = await checkInteraction(userId, 'bookmark', targetTweetId);
         console.log("Info:", result.message);
         if (result.status) {
             // Return an object wrapped in a Promise to keep consistent promise-based flow
@@ -851,19 +952,18 @@ async function checkIfBookmarked(accessToken, accessTokenSecret, userId, targetT
  * 
  * @param {string} userId - The ID of the user to check.
  * @param {string[]} requiredTypes - An array of interaction types to check for.
- * @param {string} sameType - The interaction type to check for the same tweet.
  * 
  * @return {Promise<{ isFinished: boolean }>} A promise that resolves to an object containing the result of the check.
- * 
+ * @throws {Error} If there is an error while checking the user's interactions.
  * @note This function checks if the specified user has completed all the required interaction types on Twitter, including like, retweet, reply, and follow.
  * It uses the checkUserSteps function to determine if the user has completed all interactions.
  * If the user has completed all interactions, the promise resolves to { isFinished: true }, otherwise it resolves to { isFinished: false }.
  * If there is an error during the process, the promise is rejected with the error.
  */
-async function checkIfFinished(userId, requiredTypes, sameType = null) {
+async function checkIfFinished(userId, requiredTypes) {
     try {
         // Check if the user has completed all required check procedures
-        const hasAllInteractions = await checkUserSteps(userId, requiredTypes, sameType);
+        const hasAllInteractions = await checkUserSteps(userId, requiredTypes);
         
         if (hasAllInteractions) {
             console.log("User has all required interaction types.");
@@ -946,7 +1046,7 @@ async function generatePromotionCode(userAddress) {
  * @param {string} promotionCode - The promotion code to be used.
  * 
  * @return {object} An object indicating whether the promotion code was valid.
- * 
+ * @throws {Error} If there is an error using the promotion code.
  * @note This function fetches the promotion document using the provided promotion code from the 'promotionCode' collection in the database.
  * If a document is found, the user record is updated with the parent address based on the address found in the promotion document.
  * If no document is found with the provided promotion code, an error is thrown.
@@ -1038,7 +1138,7 @@ async function checkIfPurchased(userAddress) {
  * @param {string} userAddress - The address of the child user.
  * 
  * @return {object} An object containing the parent address.
- * 
+ * @throws {Error} If there is an error finding the parent user address.
  * @note This function retrieves the parent address of the child user and rewards the parent user with the address.
  * If the parent address is not found or no parent address is available, it returns null.
  * Any errors that occur during the process are logged and optionally re-thrown.
@@ -1083,7 +1183,7 @@ async function findParentUserAddress(userAddress) {
  * @param {object} airdropRewardMaxForNotBuyer - The maximum reward amount for a non-buyer.
  * 
  * @return {object} - The append amount, reward status and max reward amount.
- * 
+ * @throws {Error} - If there is an error checking the reward for the parent user.
  * @note This function assumes that there is a MongoDB connection named `userDbConnection` and a collection named `users`.
  */
 async function checkRewardParentUser(userAddress, airdropAmount, { airdropRewardMaxForBuyer, airdropRewardMaxForNotBuyer }) {
@@ -1124,7 +1224,7 @@ async function checkRewardParentUser(userAddress, airdropAmount, { airdropReward
  * @param {string} rewardAmount - The amount of the reward in total.
  * 
  * @return {Object|null} - The updated total reward amount of the parent user, or null if no promotion code is found.
- * 
+ * @throws {Error} - If there is an error appending the reward for the parent user.
  * @note This function checks if there is already a promotion code for the user. If a promotion code is found, it appends the reward amount to the existing total reward amount. If the reward amount exceeds the maximum reward amount, it returns the existing total reward amount without appending. If no promotion code is found, it returns null.
  */
 async function appendRewardParentUser(userAddress, rewardAmount) {
@@ -1159,7 +1259,7 @@ async function appendRewardParentUser(userAddress, rewardAmount) {
  * @param {string} userAddress - The address of the user.
  * 
  * @return {object} - An object containing the total reward amount for the user.
- * 
+ * @throws {Error} - If there is an error checking the reward amount for the user.
  * @note This function requires a valid database connection to be established before calling.
  */
 async function checkRewardAmount(userAddress) {
@@ -1192,7 +1292,7 @@ async function checkRewardAmount(userAddress) {
  * @return {object} - An object indicating whether the subscription info was logged and updated.
  *                   - isLogged: true if the subscription info was logged, false otherwise.
  *                   - isUpdated: true if the subscription info was updated, false otherwise.
- * 
+ * @throws {Error} - If there is an error logging the subscription information.
  * @note If the user already exists in the database, the function updates the existing subscription info.
  *       If the user does not exist, the function inserts a new document with the subscription info.
  *       The function throws an error if the user database is not connected or if there is an error logging the subscription info.
@@ -1264,4 +1364,6 @@ module.exports = {
     appendRewardParentUser,
     checkRewardParentUser,
     checkRewardAmount,
+    checkIfTweeted,
+    tweetMessage,
 };
