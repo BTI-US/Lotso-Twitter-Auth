@@ -5,7 +5,7 @@
 [![reviewdog](https://github.com/BTI-US/Lotso-Twitter-Auth/actions/workflows/reviewdog.yml/badge.svg)](https://github.com/BTI-US/Lotso-Twitter-Auth/actions/workflows/reviewdog.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-- Last Modified: 2024-04-26
+- Last Modified: 2024-12-24
 - Author: Phill Weston
 
 ## Table of Contents
@@ -31,6 +31,8 @@
     - [Building the Redis Docker Image](#building-the-redis-docker-image)
     - [Setting the docker network](#setting-the-docker-network)
   - [Running the Application](#running-the-application)
+  - [Swagger API Explanations](#swagger-api-explanations)
+  - [How to Write a Swagger Annotation](#how-to-write-a-swagger-annotation)
   - [How to Acquire Twitter API Keys](#how-to-acquire-twitter-api-keys)
   - [Twitter API Rate Limitations](#twitter-api-rate-limitations)
     - [User Authentication Settings](#user-authentication-settings)
@@ -435,6 +437,25 @@ CHECK_LIKE_ENABLED=true \
 docker-compose -p main down
 ```
 
+## Swagger API Explanations
+
+This project uses the Swagger API to document the REST API endpoints. The Swagger API documentation can be accessed at the following URL:
+
+[https://{YOUR_SERVER_IP_ADDRESS}:{YOUR_SERVER_PORT}/api-docs](https://{YOUR_SERVER_IP_ADDRESS}:{YOUR_SERVER_PORT}/api-docs)
+
+## How to Write a Swagger Annotation
+
+To add a new endpoint to the Swagger API documentation, follow these steps:
+
+1. **Locate the Endpoint Definition**: Open the file where the endpoint is defined. This is typically a controller or route file in your project.
+2. **Add the Swagger Annotation**: Above the endpoint definition, add a Swagger annotation. Swagger annotations are written as comments in a specific format that Swagger understands.
+3. **Define the Path and Method**: Specify the path and HTTP method for the endpoint.
+4. **Add Tags**: Tags help organize the endpoints in the Swagger UI. Add a `tags` section to categorize the endpoint.
+5. **Provide a Summary and Description**: Add a brief summary and a detailed description of what the endpoint does.
+6. **List the Parameters**: If the endpoint accepts parameters, list them under the `parameters` section. Specify the parameter location (`in`), name, schema type, whether it is required, and a description.
+7. **Define the Responses**: Specify the possible responses from the endpoint, including status codes and descriptions.
+8. **Save and Verify**: Save the file and restart your server if necessary. Open your Swagger UI to verify that the new endpoint is documented correctly.
+
 ## How to Acquire Twitter API Keys
 
 1. Go to the [Twitter Developer Portal](https://developer.twitter.com/en/portal/dashboard).
@@ -537,6 +558,7 @@ All possible return codes are as follows:
 - [x] Basic functionality to interact with Twitter API.
 - [x] Use MongoDB to log each user's actions.
 - [x] Implement airdrop functionality.
+- [x] Add comment functionality for swagger api webpage.
 
 ## License
 
