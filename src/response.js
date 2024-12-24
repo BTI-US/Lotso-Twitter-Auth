@@ -37,8 +37,12 @@ const codeToErrorMap = {
     10035: 'Error appending reward for parent user',
     10036: 'Error checking recipient count',
     10037: 'Error checking user reward amount',
+    10038: 'Error checking user tweet status',
+    10039: 'Error tweeting the message',
     10040: 'Failed to get user email',
     10041: 'Error logging subscription info',
+    10042: 'tweetMessage are required in the POST body',
+    10043: 'Tweet has been posted before',
     10050: 'Failed to get OAuth request token',
 };
 

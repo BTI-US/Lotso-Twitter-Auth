@@ -17,7 +17,7 @@ const airdropPerPerson = process.env.AIRDROP_PER_PERSON || '50000';
 const airdropPerStep = process.env.AIRDROP_PER_STEP || '50000';
 const lotsoPurchasedUserAmount = process.env.LOTSO_PURCHASED_USER_AMOUNT || '300000';
 const checkRetweetEnabled = process.env.CHECK_RETWEET_ENABLED === 'true';
-const checkRetweet2Enabled = process.env.CHECK_RETWEET_2_ENABLED === 'true';
+const checkTweetEnabled = process.env.CHECK_TWEET_ENABLED === 'true';
 const checkLikeEnabled = process.env.CHECK_LIKE_ENABLED === 'true';
 
 const { TWITTER_CONSUMER_KEY, TWITTER_CONSUMER_SECRET } = process.env;
@@ -622,6 +622,91 @@ app.options('/check-bookmark', cors(corsOptions)); // Enable preflight request f
 
 /**
  * @swagger
+ * /check-tweet:
+ *   get:
+ *     tags:
+ *       - Tweets
+ *     summary: Check if a tweet has been posted by the user
+ *     description: This endpoint checks if the authenticated user has posted a tweet.
+ *     responses:
+ *       200:
+ *         description: Returns success message and result if the tweet has been posted
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *       400:
+ *         description: Returns an error if no session is found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                 message:
+ *                   type: string
+ *       401:
+ *         description: Returns an error if authentication is required
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                 message:
+ *                   type: string
+ *       500:
+ *         description: Returns an error if there's an issue while checking the tweet
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                 message:
+ *                   type: string
+ */
+app.get('/check-tweet', async (req, res) => {
+    if (!req.session) {
+        const response = createResponse(10003, 'No session found');
+        return res.status(400).json(response);
+    }
+    console.log("Endpoint hit: /check-tweet");
+
+    if (!(req.session.accessToken && req.session.accessTokenSecret)) {
+        const response = createResponse(10002, 'Authentication required');
+        return res.status(401).json(response);
+    }
+
+    try {
+        // Get the current user's Twitter ID
+        const userId = await utils.getUserTwitterId(req.session.accessToken, req.session.accessTokenSecret);
+        console.log("Current User ID is:", userId);
+
+        // Check if the tweet has been posted by the user
+        const result = await utils.checkIfTweeted(req.session.accessToken, req.session.accessTokenSecret, userId);
+        const response = createResponse(0, 'Success', result);
+        res.json(response);
+    } catch (error) {
+        const statusCode = error.statusCode || 500;
+        const response = createResponse(error.code || 10000, error.message);
+        res.status(statusCode).json(response);
+    }
+});
+app.options('/check-tweet', cors(corsOptions)); // Enable preflight request for this endpoint
+
+/**
+ * @swagger
  * /retweet:
  *   get:
  *     tags:
@@ -729,6 +814,114 @@ app.get('/retweet', async (req, res) => {
     }
 });
 app.options('/retweet', cors(corsOptions)); // Enable preflight request for this endpoint
+
+/**
+ * @swagger
+ * /tweet:
+ *   post:
+ *     tags:
+ *       - Tweets
+ *     summary: Post a tweet
+ *     description: This endpoint allows the authenticated user to post a tweet.
+ *     requestBody:
+ *       description: The tweet to be posted
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               tweet:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Returns success message and result if the tweet has been posted
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *       400:
+ *         description: Returns an error if no session is found or tweet is not provided
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                 message:
+ *                   type: string
+ *       401:
+ *         description: Returns an error if authentication is required
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                 message:
+ *                   type: string
+ *       500:
+ *         description: Returns an error if there's an issue while posting the tweet
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                 message:
+ *                   type: string
+ */
+app.post('/tweet', async (req, res) => {
+    if (!req.session) {
+        const response = createResponse(10003, 'No session found');
+        return res.status(400).json(response);
+    }
+
+    if (!(req.session.accessToken && req.session.accessTokenSecret)) {
+        const response = createResponse(10002, 'Authentication required');
+        return res.status(401).json(response);
+    }
+
+    const { tweetMessage } = req.body;
+    if (!tweetMessage) {
+        console.log("tweetMessage not found");
+        const response = createResponse(10042, 'tweetMessage are required in the POST body');
+        return res.status(400).json(response);
+    }
+
+    try {
+        // Get the current user's Twitter ID
+        const userId = await utils.getUserTwitterId(req.session.accessToken, req.session.accessTokenSecret);
+        console.log("Current User ID is:", userId);
+
+        // Check if the tweet has been posted by the user
+        const result = await utils.checkIfTweeted(req.session.accessToken, req.session.accessTokenSecret, userId);
+        if (result.isTweeted) {
+            console.log("Tweet has been posted before");
+            const response = createResponse(10043, 'Tweet has been posted before');
+            return res.json(response);
+        }
+
+        // With the user ID, proceed to tweet the specified tweet
+        const responseTweet = await utils.tweetMessage(req.session.accessToken, req.session.accessTokenSecret, tweet);
+        const response = createResponse(0, 'Success', responseTweet);
+        res.json(response);
+    } catch (error) {
+        const statusCode = error.statusCode || 500;
+        const response = createResponse(error.code || 10000, error.message);
+        res.status(statusCode).json(response);
+    }
+});
 
 /**
  * @swagger
@@ -1506,17 +1699,18 @@ app.get('/generate-promotion-code', async (req, res) => {
 
         // Note: `follow` is not included in the requiredTypes array
         const requiredTypes = [];
-        let sameType = null;
 
-        if (checkRetweetEnabled || checkRetweet2Enabled) {
+        if (checkRetweetEnabled) {
             requiredTypes.push("retweet");
         }
         if (checkLikeEnabled) {
             requiredTypes.push("like");
         }
-        sameType = (checkRetweetEnabled && checkRetweet2Enabled) ? "retweet" : "";
+        if (checkTweetEnabled) {
+            requiredTypes.push("tweet");
+        }
 
-        const result = await utils.checkIfFinished(userId, requiredTypes, sameType);
+        const result = await utils.checkIfFinished(userId, requiredTypes);
         if (result.isFinished) {
             console.log("User has completed all required steps and is eligible for obtaining the promotion code.");
             const promotionCode = await utils.generatePromotionCode(address);
